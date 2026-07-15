@@ -367,3 +367,74 @@ Para ejecutarlo, simplemente usa:
 ```bash
 node server.js
 ```
+
+---
+Ya el servidor está en ejecución. Ahora, cómo añado un evento y saber que todo esté bien?
+---
+Para comprobar que todo está funcionando correctamente, tienes tres formas principales de hacerlo: usando la terminal con **cURL**, usando una herramienta gráfica como **Postman**, o simplemente revisando el archivo local.
+
+Aquí tienes los pasos exactos:
+
+### 1. Registrar un evento (Petición POST)
+
+Abre una terminal (puedes usar la misma de VS Code) y ejecuta el siguiente comando. Este enviará un evento de prueba a tu servidor:
+
+```bash
+curl -X POST http://localhost:3000/api/eventos \
+-H "Content-Type: application/json" \
+-d '{
+  "nombre": "Conferencia de Ciberseguridad",
+  "fecha": "2023-11-25",
+  "hora": "10:00",
+  "espacio": "Auditórium Central",
+  "responsable": "Ing. Marcos Pérez",
+  "estado": "confirmado"
+}'
+```
+
+**Qué debería pasar:**
+El servidor debería responderte con un código `201 Created` y el objeto del evento que acabas de crear, incluyendo un `id` y un `createdAt` generados automáticamente.
+
+---
+
+### 2. Verificar la lista de eventos (Petición GET)
+
+Para ver si el evento se guardó en la memoria y se puede recuperar, ejecuta:
+
+```bash
+curl http://localhost:3000/api/eventos
+```
+
+O simplemente abre tu navegador y pega esta URL: [http://localhost:3000/api/eventos](http://localhost:3000/api/eventos).
+
+**Qué debería pasar:**
+Deberías ver un JSON con el arreglo `data` conteniendo el evento que acabas de insertar.
+
+---
+
+### 3. Verificación física (Archivo db.json)
+
+Como estamos usando un sistema monolítico con persistencia local, la prueba definitiva es abrir el archivo en tu editor:
+
+1. Ve a la carpeta `data/`.
+2. Abre `db.json`.
+3. Deberías ver que el archivo ya no está vacío, sino que tiene el objeto del evento escrito ahí.
+
+---
+
+### Bonus: ¿Qué pasa si falta un dato?
+Para probar que tus validaciones funcionan, intenta enviar un evento sin el nombre:
+
+```bash
+curl -X POST http://localhost:3000/api/eventos \
+-H "Content-Type: application/json" \
+-d '{"espacio": "Laboratorio 1"}'
+```
+
+**Resultado esperado:**
+El servidor debería responderte con un error `400 Bad Request` y el mensaje: `"Faltan campos obligatorios"`.
+
+### Herramienta Recomendada
+Si planeas seguir desarrollando, te recomiendo instalar la extensión **"Thunder Client"** en VS Code o descargar **Postman**. Son mucho más cómodos que cURL para ver los JSON formateados y gestionar las peticiones.
+
+¿Lograste ver el evento en el archivo `db.json`?
