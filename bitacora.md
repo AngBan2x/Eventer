@@ -1,0 +1,680 @@
+Actúa como un programador experto en Node.js y desarrollo web. Necesito crear la estructura inicial de una aplicación web monolítica para gestionar eventos en la facultad FaCyT. El backend debe usar Express y almacenar los datos de los eventos y espacios en un archivo local db.json. Genérame el código para un servidor básico en server.js que tenga dos rutas (endpoints) de tipo GET y POST: una para registrar un evento con sus datos (nombre, fecha, hora, espacio, responsable, estado) y otra para consultar todos los eventos registrados. Haz el código lo más limpio y documentado posible.
+---
+¡Hola! Como experto en Node.js, me encantaría ayudarte a sentar las bases de este proyecto para la FaCyT. Para una aplicación monolítica que utiliza un archivo local como persistencia, seguiremos una estructura limpia, separando la lógica de acceso a datos de los controladores de ruta.
+
+A continuación, te presento la estructura y el código necesario.
+
+### 1. Inicialización del proyecto
+
+Primero, asegúrate de tener una carpeta para el proyecto y ejecuta:
+
+```bash
+npm init -y
+npm install express
+```
+
+### 2. Estructura de archivos sugerida
+
+```text
+facyt-eventos/
+├── db.json           # Nuestra "base de datos" local
+├── server.js         # Punto de entrada y lógica del servidor
+└── package.json
+```
+
+### 3. Creación del archivo `db.json`
+
+Crea este archivo con una estructura inicial vacía:
+
+```json db.json
+{
+  "eventos": []
+}
+```
+
+### 4. Implementación del servidor (`server.js`)
+
+Aquí tienes el código de `server.js` con comentarios detallados y buenas prácticas:
+
+```javascript server.js
+const express = require('express');
+const fs = require('fs').promises;
+const path = require('path');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const DB_PATH = path.join(__dirname, 'db.json');
+
+// Middleware para parsear JSON en el cuerpo de las peticiones
+app.use(express.json());
+
+/**
+ * Funciones de utilidad para interactuar con db.json
+ */
+const readDB = async () => {
+    try {
+        const data = await fs.readFile(DB_PATH, 'utf-8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error("Error leyendo la base de datos:", error);
+        return { eventos: [] };
+    }
+};
+
+const writeDB = async (data) => {
+    try {
+        await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error("Error escribiendo en la base de datos:", error);
+    }
+};
+
+// --- RUTAS (ENDPOINTS) ---
+
+/**
+ * @route   GET /eventos
+ * @desc    Obtener todos los eventos registrados
+ */
+app.get('/eventos', async (req, res) => {
+    try {
+        const db = await readDB();
+        res.status(200).json({
+            success: true,
+            data: db.eventos
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al obtener eventos" });
+    }
+});
+
+/**
+ * @route   POST /eventos
+ * @desc    Registrar un nuevo evento
+ */
+app.post('/eventos', async (req, res) => {
+    try {
+        const { nombre, fecha, hora, espacio, responsable, estado } = req.body;
+
+        // Validación básica
+        if (!nombre || !fecha || !espacio || !responsable) {
+            return res.status(400).json({
+                success: false,
+                message: "Por favor, completa los campos obligatorios (nombre, fecha, espacio, responsable)."
+            });
+        }
+
+        const db = await readDB();
+
+        // Crear el nuevo objeto de evento
+        const nuevoEvento = {
+            id: Date.now(), // ID sencillo basado en timestamp
+            nombre,
+            fecha,
+            hora: hora || "No especificada",
+            espacio,
+            responsable,
+            estado: estado || "pendiente", // Estado por defecto
+            createdAt: new Date().toISOString()
+        };
+
+        // Guardar en el array y persistir en el archivo
+        db.eventos.push(nuevoEvento);
+        await writeDB(db);
+
+        res.status(201).json({
+            success: true,
+            message: "Evento registrado exitosamente",
+            data: nuevoEvento
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al registrar el evento" });
+    }
+});
+
+// Iniciar el servidor
+app.listen(PORT, () => {
+    console.log(`==========================================`);
+    console.log(` Servidor FaCyT Eventos corriendo en:`);
+    console.log(` http://localhost:${PORT}`);
+    console.log(`==========================================`);
+});
+```
+
+### Características destacadas del código:
+
+1.  **Manejo Asíncrono (`async/await`)**: Se utiliza el módulo `fs.promises` para evitar bloquear el hilo principal de Node.js al leer o escribir en el archivo JSON.
+2.  **Validación de Datos**: En el endpoint `POST`, se verifica que los campos obligatorios estén presentes antes de intentar guardar.
+3.  **Persistencia Limpia**: `JSON.stringify(data, null, 2)` permite que el archivo `db.json` se mantenga legible para humanos (con indentación).
+4.  **Respuesta Estructurada**: Todas las respuestas devuelven un objeto con una propiedad `success` y `data` o `message`, lo cual es una excelente práctica para facilitar el consumo desde el frontend.
+5.  **Robustez**: Se incluyen bloques `try-catch` para manejar posibles errores de lectura/escritura de archivos.
+
+### Cómo probarlo:
+
+1.  **Iniciar el servidor**: `node server.js`
+2.  **Registrar un evento (POST)**: Usa Postman o cURL:
+    ```bash
+    curl -X POST http://localhost:3000/eventos \
+    -H "Content-Type: application/json" \
+    -d '{"nombre": "Seminario AI", "fecha": "2023-12-01", "espacio": "Aula Magna", "responsable": "Dr. Garcia"}'
+    ```
+3.  **Consultar eventos (GET)**:
+    ```bash
+    curl http://localhost:3000/eventos
+    ```
+
+¿Te gustaría que añadamos alguna validación específica para los espacios de la facultad o que implementemos el sistema de rutas en archivos separados?
+
+---
+Implementemos el sistema en archivos separados
+---
+
+Excelente decisión. Separar el código en capas (Rutas, Controladores y Persistencia) hace que la aplicación sea mucho más escalable, fácil de testear y profesional.
+
+Aquí tienes la estructura de archivos propuesta y el código correspondiente:
+
+### Nueva Estructura de Proyecto
+
+```text
+facyt-eventos/
+├── data/
+│   └── db.json              # "Base de datos"
+├── src/
+│   ├── controllers/
+│   │   └── eventos.controller.js  # Lógica de negocio
+│   ├── routes/
+│   │   └── eventos.routes.js      # Definición de rutas
+│   ├── utils/
+│   │   └── dbHandler.js           # Utilidades para leer/escribir el JSON
+│   └── app.js                     # Configuración de Express
+├── server.js                      # Punto de entrada (Arranque)
+└── package.json
+```
+
+---
+
+### 1. Persistencia: `src/utils/dbHandler.js`
+Esta capa se encarga exclusivamente de interactuar con el archivo físico.
+
+```javascript src/utils/dbHandler.js
+const fs = require('fs').promises;
+const path = require('path');
+
+const DB_PATH = path.join(__dirname, '../../data/db.json');
+
+const readDB = async () => {
+    try {
+        const data = await fs.readFile(DB_PATH, 'utf-8');
+        return JSON.parse(data);
+    } catch (error) {
+        // Si el archivo no existe, devolvemos una estructura inicial
+        return { eventos: [] };
+    }
+};
+
+const writeDB = async (data) => {
+    try {
+        await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error("Error al escribir en db.json:", error);
+        throw new Error("Error de persistencia");
+    }
+};
+
+module.exports = { readDB, writeDB };
+```
+
+---
+
+### 2. Controlador: `src/controllers/eventos.controller.js`
+Aquí reside la lógica de qué hacer cuando llega una petición.
+
+```javascript src/controllers/eventos.controller.js
+const { readDB, writeDB } = require('../utils/dbHandler');
+
+/**
+ * Obtiene todos los eventos
+ */
+const getEventos = async (req, res) => {
+    try {
+        const db = await readDB();
+        res.status(200).json({ success: true, data: db.eventos });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Crea un nuevo evento
+ */
+const createEvento = async (req, res) => {
+    try {
+        const { nombre, fecha, hora, espacio, responsable, estado } = req.body;
+
+        if (!nombre || !fecha || !espacio || !responsable) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Faltan campos obligatorios" 
+            });
+        }
+
+        const db = await readDB();
+        
+        const nuevoEvento = {
+            id: Date.now(),
+            nombre,
+            fecha,
+            hora: hora || "Por definir",
+            espacio,
+            responsable,
+            estado: estado || "pendiente",
+            createdAt: new Date().toISOString()
+        };
+
+        db.eventos.push(nuevoEvento);
+        await writeDB(db);
+
+        res.status(201).json({ success: true, data: nuevoEvento });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = {
+    getEventos,
+    createEvento
+};
+```
+
+---
+
+### 3. Rutas: `src/routes/eventos.routes.js`
+Define los endpoints y los vincula a sus controladores.
+
+```javascript src/routes/eventos.routes.js
+const express = require('express');
+const router = express.Router();
+const eventosController = require('../controllers/eventos.controller');
+
+// Definición de endpoints
+router.get('/', eventosController.getEventos);
+router.post('/', eventosController.createEvento);
+
+module.exports = router;
+```
+
+---
+
+### 4. Configuración de App: `src/app.js`
+Configura middlewares y centraliza las rutas.
+
+```javascript src/app.js
+const express = require('express');
+const eventosRoutes = require('./routes/eventos.routes');
+
+const app = express();
+
+// Middlewares
+app.use(express.json());
+
+// Rutas
+app.use('/api/eventos', eventosRoutes);
+
+// Ruta base de prueba
+app.get('/', (req, res) => {
+    res.json({ message: "Bienvenido a la API de Gestión de Eventos FaCyT" });
+});
+
+module.exports = app;
+```
+
+---
+
+### 5. Punto de entrada: `server.js`
+Solo se encarga de levantar el servidor.
+
+```javascript server.js
+const app = require('./src/app');
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor listo en http://localhost:${PORT}`);
+    console.log(`📌 Endpoints disponibles:`);
+    console.log(`   - GET  /api/eventos`);
+    console.log(`   - POST /api/eventos`);
+});
+```
+
+---
+
+### 6. Inicialización de datos: `data/db.json`
+Asegúrate de crear la carpeta `data` y el archivo `db.json`:
+
+```json data/db.json
+{
+  "eventos": []
+}
+```
+
+### Ventajas de este enfoque:
+1.  **Mantenibilidad**: Si mañana decides cambiar `db.json` por MongoDB o PostgreSQL, solo tienes que modificar `dbHandler.js`.
+2.  **Legibilidad**: Cada archivo tiene una única responsabilidad (Principio de Responsabilidad Única).
+3.  **Escalabilidad**: Si necesitas gestionar "Espacios" o "Usuarios", simplemente creas nuevas carpetas de controladores y rutas siguiendo el mismo patrón.
+4.  **Organización**: Las rutas ahora están prefijadas con `/api/eventos`, lo que permite versionar tu API fácilmente en el futuro.
+
+Para ejecutarlo, simplemente usa:
+```bash
+node server.js
+```
+
+---
+Ya el servidor está en ejecución. Ahora, cómo añado un evento y saber que todo esté bien?
+---
+Para comprobar que todo está funcionando correctamente, tienes tres formas principales de hacerlo: usando la terminal con **cURL**, usando una herramienta gráfica como **Postman**, o simplemente revisando el archivo local.
+
+Aquí tienes los pasos exactos:
+
+### 1. Registrar un evento (Petición POST)
+
+Abre una terminal (puedes usar la misma de VS Code) y ejecuta el siguiente comando. Este enviará un evento de prueba a tu servidor:
+
+```bash
+curl -X POST http://localhost:3000/api/eventos \
+-H "Content-Type: application/json" \
+-d '{
+  "nombre": "Conferencia de Ciberseguridad",
+  "fecha": "2023-11-25",
+  "hora": "10:00",
+  "espacio": "Auditórium Central",
+  "responsable": "Ing. Marcos Pérez",
+  "estado": "confirmado"
+}'
+```
+
+**Qué debería pasar:**
+El servidor debería responderte con un código `201 Created` y el objeto del evento que acabas de crear, incluyendo un `id` y un `createdAt` generados automáticamente.
+
+---
+
+### 2. Verificar la lista de eventos (Petición GET)
+
+Para ver si el evento se guardó en la memoria y se puede recuperar, ejecuta:
+
+```bash
+curl http://localhost:3000/api/eventos
+```
+
+O simplemente abre tu navegador y pega esta URL: [http://localhost:3000/api/eventos](http://localhost:3000/api/eventos).
+
+**Qué debería pasar:**
+Deberías ver un JSON con el arreglo `data` conteniendo el evento que acabas de insertar.
+
+---
+
+### 3. Verificación física (Archivo db.json)
+
+Como estamos usando un sistema monolítico con persistencia local, la prueba definitiva es abrir el archivo en tu editor:
+
+1. Ve a la carpeta `data/`.
+2. Abre `db.json`.
+3. Deberías ver que el archivo ya no está vacío, sino que tiene el objeto del evento escrito ahí.
+
+---
+
+### Bonus: ¿Qué pasa si falta un dato?
+Para probar que tus validaciones funcionan, intenta enviar un evento sin el nombre:
+
+```bash
+curl -X POST http://localhost:3000/api/eventos \
+-H "Content-Type: application/json" \
+-d '{"espacio": "Laboratorio 1"}'
+```
+
+**Resultado esperado:**
+El servidor debería responderte con un error `400 Bad Request` y el mensaje: `"Faltan campos obligatorios"`.
+
+### Herramienta Recomendada
+Si planeas seguir desarrollando, te recomiendo instalar la extensión **"Thunder Client"** en VS Code o descargar **Postman**. Son mucho más cómodos que cURL para ver los JSON formateados y gestionar las peticiones.
+
+¿Lograste ver el evento en el archivo `db.json`?
+
+---
+Si. Ahora, actúa como un desarrollador experto en Node.js y Express. Estamos construyendo una API monolítica con persistencia en un archivo local db.json para gestionar eventos en una facultad. Ya tenemos la estructura base, pero necesito completar el backend cumpliendo dos requerimientos específicos:
+
+Gestión de Espacios: > - Modifica la inicialización lógica o indícame cómo actualizar el db.json para que ahora contenga un arreglo de "espacios".
+
+Crea un controlador en src/controllers/espacios.controller.js con un endpoint GET para listar todos los espacios y un POST para crear un espacio nuevo (datos: nombre, tipo, capacidad).
+
+Crea el archivo de rutas src/routes/espacios.routes.js.
+
+Indícame cómo actualizar src/app.js para usar estas nuevas rutas bajo /api/espacios.
+
+Vista de Resumen (Dashboard/Estadísticas):
+
+En el archivo existente src/controllers/eventos.controller.js, agrega un nuevo controlador llamado getResumen. Este endpoint debe leer todos los eventos y retornar un objeto con estadísticas calculadas: cantidad total de eventos, cantidad de eventos por cada estado (pendiente, aprobado, etc.), y los próximos 5 eventos más cercanos en fecha.
+
+Indícame cómo agregar la ruta GET /resumen en src/routes/eventos.routes.js (asegúrate de colocarla antes del endpoint /:id para evitar conflictos de ruteo).
+
+Por favor, genera el código completo, limpio y con manejo de errores (try-catch) usando las funciones readDB y writeDB que ya tengo en src/utils/dbHandler.js.
+
+---
+¡Excelente! Como experto en Node.js, me encanta ver cómo la arquitectura está evolucionando. El paso de un esquema simple a uno con múltiples entidades y lógica de agregación (el resumen) es el momento ideal para reforzar la robustez del código.
+
+Aquí tienes los pasos y el código necesario para cumplir con los nuevos requerimientos.
+
+### 1. Actualización de la persistencia (`data/db.json`)
+
+Para que la aplicación no falle al intentar leer una propiedad inexistente, actualiza tu archivo `db.json` para que incluya el arreglo de espacios:
+
+```json data/db.json
+{
+  "eventos": [],
+  "espacios": []
+}
+```
+
+---
+
+### 2. Gestión de Espacios
+
+#### `src/controllers/espacios.controller.js`
+Este controlador manejará la lógica para los espacios físicos de la facultad.
+
+```javascript src/controllers/espacios.controller.js
+const { readDB, writeDB } = require('../utils/dbHandler');
+
+/**
+ * Obtener todos los espacios
+ */
+const getEspacios = async (req, res) => {
+    try {
+        const db = await readDB();
+        res.status(200).json({ success: true, data: db.espacios });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al obtener espacios" });
+    }
+};
+
+/**
+ * Crear un nuevo espacio (Aula, Auditorio, etc.)
+ */
+const createEspacio = async (req, res) => {
+    try {
+        const { nombre, tipo, capacidad } = req.body;
+
+        // Validación básica
+        if (!nombre || !tipo || !capacidad) {
+            return res.status(400).json({
+                success: false,
+                message: "Nombre, tipo y capacidad son obligatorios"
+            });
+        }
+
+        const db = await readDB();
+        
+        const nuevoEspacio = {
+            id: Date.now(),
+            nombre,
+            tipo,
+            capacidad: parseInt(capacidad),
+            createdAt: new Date().toISOString()
+        };
+
+        db.espacios.push(nuevoEspacio);
+        await writeDB(db);
+
+        res.status(201).json({ success: true, data: nuevoEspacio });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al crear espacio" });
+    }
+};
+
+module.exports = { getEspacios, createEspacio };
+```
+
+#### `src/routes/espacios.routes.js`
+Definimos los puntos de entrada para la nueva entidad.
+
+```javascript src/routes/espacios.routes.js
+const express = require('express');
+const router = express.Router();
+const espaciosController = require('../controllers/espacios.controller');
+
+router.get('/', espaciosController.getEspacios);
+router.post('/', espaciosController.createEspacio);
+
+module.exports = router;
+```
+
+---
+
+### 3. Vista de Resumen (Estadísticas)
+
+#### Actualización de `src/controllers/eventos.controller.js`
+Añadiremos la función `getResumen` al archivo que ya tienes.
+
+```javascript src/controllers/eventos.controller.js
+// ... (mantenemos los imports anteriores)
+const { readDB, writeDB } = require('../utils/dbHandler');
+
+/**
+ * Genera un resumen estadístico de los eventos
+ */
+const getResumen = async (req, res) => {
+    try {
+        const db = await readDB();
+        const eventos = db.eventos;
+
+        // 1. Cantidad total
+        const totalEventos = eventos.length;
+
+        // 2. Cantidad por estado
+        const porEstado = eventos.reduce((acc, evento) => {
+            const estado = evento.estado || 'pendiente';
+            acc[estado] = (acc[estado] || 0) + 1;
+            return acc;
+        }, {});
+
+        // 3. Próximos 5 eventos (ordenados por fecha ascendente)
+        // Solo tomamos eventos cuya fecha sea igual o posterior a hoy
+        const hoy = new Date().toISOString().split('T')[0];
+        const proximosCinco = eventos
+            .filter(e => e.fecha >= hoy)
+            .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+            .slice(0, 5);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                total: totalEventos,
+                estadisticas: porEstado,
+                proximosEventos: proximosCinco
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al generar resumen" });
+    }
+};
+
+// ... (asegúrate de exportar la nueva función junto con las anteriores)
+module.exports = {
+    getEventos,
+    createEvento,
+    getResumen // Nueva exportación
+};
+```
+
+#### Actualización de `src/routes/eventos.routes.js`
+Es crucial el orden de las rutas para que Express no confunda `/resumen` con un ID (si tuvieras una ruta `/:id`).
+
+```javascript src/routes/eventos.routes.js
+const express = require('express');
+const router = express.Router();
+const eventosController = require('../controllers/eventos.controller');
+
+// NOTA: Colocamos 'resumen' ANTES de cualquier ruta con parámetros dinámicos
+router.get('/resumen', eventosController.getResumen);
+router.get('/', eventosController.getEventos);
+router.post('/', eventosController.createEvento);
+
+module.exports = router;
+```
+
+---
+
+### 4. Conexión en `src/app.js`
+
+Ahora registramos el nuevo router de espacios en la aplicación principal.
+
+```javascript src/app.js
+const express = require('express');
+const eventosRoutes = require('./routes/eventos.routes');
+const espaciosRoutes = require('./routes/espacios.routes'); // Nuevo
+
+const app = express();
+
+app.use(express.json());
+
+// Registro de rutas
+app.use('/api/eventos', eventosRoutes);
+app.use('/api/espacios', espaciosRoutes); // Nueva línea
+
+app.get('/', (req, res) => {
+    res.json({ message: "API FaCyT Operativa" });
+});
+
+module.exports = app;
+```
+
+---
+
+### Resumen de Endpoints Disponibles:
+
+1.  **Espacios**:
+    *   `GET  /api/espacios`: Lista todos los espacios.
+    *   `POST /api/espacios`: Crea un espacio (nombre, tipo, capacidad).
+2.  **Eventos**:
+    *   `GET  /api/eventos/resumen`: Devuelve las estadísticas y próximos eventos.
+    *   `GET  /api/eventos`: Lista todos los eventos.
+    *   `POST /api/eventos`: Registra un nuevo evento.
+
+### Ejemplo de respuesta de `/api/eventos/resumen`:
+```json
+{
+  "success": true,
+  "data": {
+    "total": 12,
+    "estadisticas": {
+      "confirmado": 5,
+      "pendiente": 7
+    },
+    "proximosEventos": [
+      { "nombre": "Final Programación", "fecha": "2023-12-15", ... },
+      ...
+    ]
+  }
+}
+```
+
+¿Te gustaría que añadamos alguna lógica de validación cruzada? (Por ejemplo, que al crear un evento se verifique que el `espacio` realmente exista en la lista de espacios).
