@@ -48,7 +48,47 @@ const createEvento = async (req, res) => {
     }
 };
 
+/**
+ * Genera un resumen estadístico de los eventos
+ */
+const getResumen = async (req, res) => {
+    try {
+        const db = await readDB();
+        const eventos = db.eventos;
+
+        // 1. Cantidad total
+        const totalEventos = eventos.length;
+
+        // 2. Cantidad por estado
+        const porEstado = eventos.reduce((acc, evento) => {
+            const estado = evento.estado || 'pendiente';
+            acc[estado] = (acc[estado] || 0) + 1;
+            return acc;
+        }, {});
+
+        // 3. Próximos 5 eventos (ordenados por fecha ascendente)
+        // Solo tomamos eventos cuya fecha sea igual o posterior a hoy
+        const hoy = new Date().toISOString().split('T')[0];
+        const proximosCinco = eventos
+            .filter(e => e.fecha >= hoy)
+            .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+            .slice(0, 5);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                total: totalEventos,
+                estadisticas: porEstado,
+                proximosEventos: proximosCinco
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al generar resumen" });
+    }
+};
+
 module.exports = {
     getEventos,
-    createEvento
+    createEvento,
+    getResumen
 };
