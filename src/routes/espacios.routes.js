@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const espaciosController = require('../controllers/espacios.controller');
+const eventosController = require('../controllers/eventos.controller');
 
+// Orden crítico: rutas estáticas antes que dinámicas
 router.get('/resumen', eventosController.getResumen);
-router.get('/', espaciosController.getEspacios);
-router.post('/', espaciosController.createEspacio);
+router.get('/', eventosController.getEventos);
+router.post('/', eventosController.createEvento);
+router.put('/:id', eventosController.updateEvento); // Para editar y cambiar estados
 
 module.exports = router;
