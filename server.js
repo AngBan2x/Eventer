@@ -7,4 +7,6 @@ app.listen(PORT, () => {
     console.log(`📌 Endpoints disponibles:`);
     console.log(`   - GET  /api/eventos`);
     console.log(`   - POST /api/eventos`);
+    console.log(`   - GET  /api/espacios`);
+    console.log(`   - POST /api/espacios`);
 });

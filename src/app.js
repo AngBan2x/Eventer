@@ -1,5 +1,6 @@
 const express = require('express');
 const eventosRoutes = require('./routes/eventos.routes');
+const espaciosRoutes = require('./routes/espacios.routes');
 
 const app = express();
 
@@ -8,6 +9,7 @@ app.use(express.json());
 
 // Rutas
 app.use('/api/eventos', eventosRoutes);
+app.use('/api/espacios', espaciosRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => {

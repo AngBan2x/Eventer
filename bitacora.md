@@ -1280,3 +1280,36 @@ curl -X DELETE http://localhost:3000/api/eventos/ID_AQUÍ
 ```
 
 Con esto, el backend está **100% blindado** y cumple con cada punto de la asignación FaCyT. ¿Listo para que empecemos con la interfaz visual (Frontend)?
+
+---
+Creo que tengo un problema al hacer la prueba 1. Me da un error tipo:curl -X POST http://localhost:3000/api/espacios -H "Content-Type: application/json" -d '{"nombre": "Salón 10", "tipo": "Aula", "capacidad": 40}'
+
+Cannot POST /api/espacios
+---
+¡Tienes toda la razón! El error ocurria porque, aunque habiamos creado el archivo de rutas de espacios, **no lo habíamos "conectado" al servidor principal** en `src/app.js`. Express no sabía qué hacer cuando llegaba una petición a `/api/espacios`.
+
+He realizado los siguientes cambios para solucionarlo:
+
+1.  **Actualicé `src/app.js`**: Ya importé y registré las rutas de espacios con `app.use('/api/espacios', espaciosRoutes)`.
+2.  **Actualicé `server.js`**: Añadí los logs para que veas todos los endpoints disponibles al iniciar.
+
+### 🛠️ Cómo aplicar la solución:
+
+Si estás corriendo el servidor manualmente (con `node server.js`), **debes reiniciarlo** para que tome los cambios:
+
+1.  Ve a la terminal donde está el servidor.
+2.  Presiona `Ctrl + C` para detenerlo.
+3.  Ejecuta nuevamente: `node server.js`
+
+Ahora, vuelve a intentar la prueba 1:
+
+```bash
+curl -X POST http://localhost:3000/api/espacios \
+-H "Content-Type: application/json" \
+-d '{"nombre": "Salón 10", "tipo": "Aula", "capacidad": 40}'
+```
+
+**Resultado esperado:**
+Deberías recibir un JSON con `success: true` y los datos del espacio creado.
+
+¿Te funcionó ahora? Si es así, puedes proceder con el resto de las pruebas.
