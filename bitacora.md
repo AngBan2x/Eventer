@@ -678,3 +678,194 @@ module.exports = app;
 ```
 
 ¿Te gustaría que añadamos alguna lógica de validación cruzada? (Por ejemplo, que al crear un evento se verifique que el `espacio` realmente exista en la lista de espacios).
+
+---
+Sí, me gustaría. Terminemos de pulir este backend para que quede bien robusto según  , hacer pruebas para verificar que todo esté bien. Después nos centramos en el frontend.
+---
+¡Excelente! Tomando como base el documento de la **Primera Asignación de Codificación**, vamos a elevar el backend a un nivel profesional. 
+
+Para cumplir con los requerimientos **d (Conflictos)**, **e (Estados)**, **f (Resumen)** e **i (Edición)**, realizaré las siguientes mejoras críticas:
+
+1.  **Validación de Conflictos:** No permitiremos registrar un evento si el espacio ya está ocupado en esa fecha y hora.
+2.  **Lógica de Estados:** Implementaremos la capacidad de actualizar el estado de un evento (Aprobado, Rechazado, etc.).
+3.  **CRUD Completo:** Añadiremos la funcionalidad de actualizar y eliminar.
+4.  **Resumen Enriquecido:** El dashboard ahora incluirá espacios más usados y conteo por tipo de actividad.
+
+Aquí tienes el código actualizado y robusto:
+
+### 1. Controlador de Eventos Mejorado (`src/controllers/eventos.controller.js`)
+
+He añadido la lógica de validación de conflictos y la función de actualización.
+
+```javascript src/controllers/eventos.controller.js
+const { readDB, writeDB } = require('../utils/dbHandler');
+
+/**
+ * Función auxiliar para verificar conflictos de horario
+ */
+const verificarConflicto = (eventos, nuevoEvento, idIgnorar = null) => {
+    return eventos.find(e => 
+        e.id !== idIgnorar &&
+        e.fecha === nuevoEvento.fecha &&
+        e.hora === nuevoEvento.hora &&
+        e.espacio === nuevoEvento.espacio &&
+        e.estado !== 'cancelado' && e.estado !== 'rechazado'
+    );
+};
+
+const getEventos = async (req, res) => {
+    try {
+        const db = await readDB();
+        res.status(200).json({ success: true, data: db.eventos });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error al obtener eventos" });
+    }
+};
+
+const createEvento = async (req, res) => {
+    try {
+        const { nombre, fecha, hora, espacio, responsable, tipo, estado } = req.body;
+
+        if (!nombre || !fecha || !hora || !espacio) {
+            return res.status(400).json({ success: false, message: "Faltan datos críticos" });
+        }
+
+        const db = await readDB();
+
+        // REQUERIMIENTO D: Verificar conflictos
+        const conflicto = verificarConflicto(db.eventos, { fecha, hora, espacio });
+        if (conflicto) {
+            return res.status(409).json({ 
+                success: false, 
+                message: `Conflicto: El espacio '${espacio}' ya está reservado para el ${fecha} a las ${hora}.` 
+            });
+        }
+
+        const nuevoEvento = {
+            id: Date.now(),
+            nombre, fecha, hora, espacio, responsable,
+            tipo: tipo || "Académico",
+            estado: estado || "solicitado", // REQUERIMIENTO E: Estado inicial
+            createdAt: new Date().toISOString()
+        };
+
+        db.eventos.push(nuevoEvento);
+        await writeDB(db);
+        res.status(201).json({ success: true, data: nuevoEvento });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * REQUERIMIENTO I: Edición o actualización
+ */
+const updateEvento = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+        const db = await readDB();
+        
+        const index = db.eventos.findIndex(e => e.id == id);
+        if (index === -1) return res.status(404).json({ success: false, message: "Evento no encontrado" });
+
+        // Si se intenta cambiar fecha/hora/espacio, verificar que no choque con otro
+        if (updates.fecha || updates.hora || updates.espacio) {
+            const eventoActualizado = { ...db.eventos[index], ...updates };
+            const conflicto = verificarConflicto(db.eventos, eventoActualizado, parseInt(id));
+            if (conflicto) {
+                return res.status(409).json({ success: false, message: "La actualización genera un conflicto de horario/espacio." });
+            }
+        }
+
+        db.eventos[index] = { ...db.eventos[index], ...updates, updatedAt: new Date().toISOString() };
+        await writeDB(db);
+        
+        res.status(200).json({ success: true, data: db.eventos[index] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * REQUERIMIENTO F: Vista de resumen enriquecida
+ */
+const getResumen = async (req, res) => {
+    try {
+        const db = await readDB();
+        const eventos = db.eventos;
+
+        const resumen = {
+            total: eventos.length,
+            porEstado: {},
+            porTipo: {},
+            espaciosMasUsados: {},
+            proximos: eventos
+                .filter(e => e.fecha >= new Date().toISOString().split('T')[0])
+                .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+                .slice(0, 5)
+        };
+
+        eventos.forEach(e => {
+            resumen.porEstado[e.estado] = (resumen.porEstado[e.estado] || 0) + 1;
+            resumen.porTipo[e.tipo] = (resumen.porTipo[e.tipo] || 0) + 1;
+            resumen.espaciosMasUsados[e.espacio] = (resumen.espaciosMasUsados[e.espacio] || 0) + 1;
+        });
+
+        res.status(200).json({ success: true, data: resumen });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = { getEventos, createEvento, updateEvento, getResumen };
+```
+
+---
+
+### 2. Rutas Actualizadas (`src/routes/eventos.routes.js`)
+
+```javascript src/routes/eventos.routes.js
+const express = require('express');
+const router = express.Router();
+const eventosController = require('../controllers/eventos.controller');
+
+// Orden crítico: rutas estáticas antes que dinámicas
+router.get('/resumen', eventosController.getResumen);
+router.get('/', eventosController.getEventos);
+router.post('/', eventosController.createEvento);
+router.put('/:id', eventosController.updateEvento); // Para editar y cambiar estados
+
+module.exports = router;
+```
+
+---
+
+### 3. Pruebas de Verificación (Backend Ready)
+
+Para asegurar que todo está bien antes de pasar al frontend, realiza estas 3 pruebas:
+
+#### Prueba A: Verificar Conflicto (Req. d)
+1. Registra un evento en "Laboratorio 1" el "2023-12-10" a las "14:00".
+2. Intenta registrar **otro** evento diferente en el mismo lugar, fecha y hora.
+3. **Resultado esperado:** El servidor debe devolver un error `409 Conflict`.
+
+#### Prueba B: Cambio de Estado (Req. e e i)
+1. Toma el `id` de un evento con estado "solicitado".
+2. Haz una petición `PUT` a `/api/eventos/ID_DEL_EVENTO` con el cuerpo: `{"estado": "aprobado"}`.
+3. **Resultado esperado:** El evento debe actualizarse a "aprobado".
+
+#### Prueba C: El Resumen (Req. f)
+1. Haz un `GET` a `/api/eventos/resumen`.
+2. **Resultado esperado:** Un objeto con el conteo de estados, tipos y los espacios más utilizados (útil para la toma de decisiones de la facultad).
+
+---
+
+### ¿Qué logramos con esto?
+*   **Pensamiento Sistémico:** El sistema ya no solo "guarda datos", sino que "controla el proceso" al evitar choques de horarios y gestionar el ciclo de vida (estados).
+*   **Calidad de Datos:** Forzamos integridad al validar campos y conflictos.
+*   **Valor Organizacional:** El resumen permite a la FaCyT saber qué espacios tienen mayor demanda.
+
+**¿Deseas que pasemos ahora al Frontend para crear la interfaz donde los usuarios verán todo esto, o prefieres que implementemos también la eliminación lógica de eventos?**
+
+---
