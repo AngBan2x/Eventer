@@ -1,0 +1,103 @@
+{
+  "eventos": [
+    {
+      "id": 1784589788181,
+      "nombre": "Clase Programación",
+      "fecha": "2023-12-01",
+      "hora": "08:00",
+      "espacio": "Salón 10",
+      "responsable": "Prof. Pérez",
+      "tipo": "Académico",
+      "estado": "cancelado",
+      "eliminado": true,
+      "createdAt": "2026-07-20T23:23:08.181Z",
+      "deletedAt": "2026-07-20T23:27:11.057Z"
+    },
+    {
+      "id": 1784590046572,
+      "nombre": "Reunión Directiva",
+      "fecha": "2023-12-01",
+      "hora": "08:00",
+      "espacio": "Salón 10",
+      "responsable": "Decano",
+      "tipo": "Académico",
+      "estado": "cancelado",
+      "eliminado": true,
+      "createdAt": "2026-07-20T23:27:26.572Z",
+      "deletedAt": "2026-07-21T03:02:13.001Z"
+    },
+    {
+      "id": 1784602864514,
+      "nombre": "Clase magistral",
+      "fecha": "2026-07-20",
+      "hora": "07:30",
+      "espacio": "Salón 10",
+      "responsable": "Angel Bandres",
+      "tipo": "Académico",
+      "estado": "solicitado",
+      "eliminado": false,
+      "createdAt": "2026-07-21T03:01:04.514Z"
+    },
+    {
+      "id": 1784654541106,
+      "nombre": "Enrobustización del backend",
+      "fecha": "2026-07-21",
+      "hora": "13:21",
+      "espacio": "Hall de Laboratorios",
+      "responsable": "Angel Bandres y Joshtin Mejías",
+      "tipo": "Académico",
+      "estado": "solicitado",
+      "eliminado": false,
+      "createdAt": "2026-07-21T17:22:21.106Z"
+    }
+  ],
+  "espacios": [
+    {
+      "id": 1784589747628,
+      "nombre": "Salón 10",
+      "tipo": "Aula",
+      "capacidad": 40,
+      "createdAt": "2026-07-20T23:22:27.628Z"
+    },
+    {
+      "id": 1784654199961,
+      "nombre": "Salón 11",
+      "tipo": "Aula",
+      "capacidad": 45,
+      "eliminado": false,
+      "createdAt": "2026-07-21T17:16:39.961Z"
+    },
+    {
+      "id": 1784654200045,
+      "nombre": "Salón 12",
+      "tipo": "Aula",
+      "capacidad": 45,
+      "eliminado": false,
+      "createdAt": "2026-07-21T17:16:40.045Z"
+    },
+    {
+      "id": 1784654200133,
+      "nombre": "Plaza Roja",
+      "tipo": "Área Abierta",
+      "capacidad": 500,
+      "eliminado": false,
+      "createdAt": "2026-07-21T17:16:40.133Z"
+    },
+    {
+      "id": 1784654200218,
+      "nombre": "Pasillos Edificio Aulas",
+      "tipo": "Edificio",
+      "capacidad": 150,
+      "eliminado": false,
+      "createdAt": "2026-07-21T17:16:40.218Z"
+    },
+    {
+      "id": 1784654200298,
+      "nombre": "Hall de Laboratorios",
+      "tipo": "Edificio",
+      "capacidad": 100,
+      "eliminado": false,
+      "createdAt": "2026-07-21T17:16:40.298Z"
+    }
+  ]
+}
