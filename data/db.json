@@ -1,4 +1,28 @@
 {
+  "usuarios": [
+    {
+      "id": 1,
+      "nombre": "Administrador",
+      "email": "admin@uc.edu.ve",
+      "password": "123",
+      "rol": "admin"
+    },
+    {
+      "id": 2,
+      "nombre": "Organizador Prof",
+      "email": "organizador@uc.edu.ve",
+      "password": "123",
+      "rol": "organizador"
+    },
+    {
+      "id": 3,
+      "nombre": "Estudiante Demo",
+      "email": "estudiante@uc.edu.ve",
+      "password": "123",
+      "rol": "estudiante"
+    }
+  ],
+  "asistencias": [],
   "eventos": [
     {
       "id": 1784589788181,
@@ -11,7 +35,8 @@
       "estado": "cancelado",
       "eliminado": true,
       "createdAt": "2026-07-20T23:23:08.181Z",
-      "deletedAt": "2026-07-20T23:27:11.057Z"
+      "deletedAt": "2026-07-20T23:27:11.057Z",
+      "usuario_id": 2
     },
     {
       "id": 1784590046572,
@@ -24,7 +49,8 @@
       "estado": "cancelado",
       "eliminado": true,
       "createdAt": "2026-07-20T23:27:26.572Z",
-      "deletedAt": "2026-07-21T03:02:13.001Z"
+      "deletedAt": "2026-07-21T03:02:13.001Z",
+      "usuario_id": 2
     },
     {
       "id": 1784602864514,
@@ -36,7 +62,8 @@
       "tipo": "Académico",
       "estado": "solicitado",
       "eliminado": false,
-      "createdAt": "2026-07-21T03:01:04.514Z"
+      "createdAt": "2026-07-21T03:01:04.514Z",
+      "usuario_id": 2
     },
     {
       "id": 1784654541106,
@@ -48,7 +75,8 @@
       "tipo": "Académico",
       "estado": "solicitado",
       "eliminado": false,
-      "createdAt": "2026-07-21T17:22:21.106Z"
+      "createdAt": "2026-07-21T17:22:21.106Z",
+      "usuario_id": 2
     }
   ],
   "espacios": [
