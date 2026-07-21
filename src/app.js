@@ -13,9 +13,4 @@ app.use(express.static('public'));
 app.use('/api/eventos', eventosRoutes);
 app.use('/api/espacios', espaciosRoutes);
 
-// Ruta base de prueba
-app.get('/', (req, res) => {
-    res.json({ message: "Bienvenido a la API de Gestión de Eventos FaCyT" });
-});
-
 module.exports = app;
