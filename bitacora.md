@@ -1313,3 +1313,277 @@ curl -X POST http://localhost:3000/api/espacios \
 Deberías recibir un JSON con `success: true` y los datos del espacio creado.
 
 ¿Te funcionó ahora? Si es así, puedes proceder con el resto de las pruebas.
+
+---
+Ya hice los comandos y todos fueron exitosos@AngBan2x ➜ /workspaces/Eventer (main) $ curl -X POST http://localhost:3000/api/espacios \
+-H "Content-Type: application/json" \
+-d '{"nombre": "Salón 10", "tipo": "Aula", "capacidad": 40}'
+{"success":true,"data":{"id":1784589747628,"nombre":"Salón 10","tipo":"Aula","capacidad":40,"createdAt":"2026@AngBan2x ➜ /workspaces/Eventer (main) $ curl -X POST http://localhost:3000/api/eventos -H "Content-Type: application/json" -d '{"nombre": "Clase Programación", "fecha": "2023-12-01", "hora": "08:00", "espacio": "Salón 10", "responsable": "Prof. Pérez"}'sable": "Prof. Pérez"}'
+{"success":true,"data":{"id":1784589788181,"nombre":"Clase Programación","fecha":"2023-12-01","hora":"08:00","espacio":"Salón 10","responsable":"Prof. Pérez","tipo":"Académico","estado":"solicitado","eliminado":false,"createdAt":"2026-07-20T23:23:08.181Z"}}@AngBan2x ➜ /workspaces/Eventer (main) $ 
+@AngBan2x ➜ /workspaces/Eventer (main) $ curl -X POST http://localhost:3000/api/eventos -H "Content-Type: application/json" -d '{"nombre": "Reunión Directiva", "fecha": "2023-12-01", "hora": "08:00", "espacio": "Salón 10", "responsable": "Decano"}'
+{"success":false,"message":"Conflicto: El espacio 'Salón 10' ya está ocupado en esa fecha y hora."}@AngBan2x ➜ /workspaces/Eventer (main) $ 
+@AngBan2x ➜ /workspaces/Eventer (main) $ curl http://localhost:3000/api/eventos/resumen
+{"success":true,"data":{"total":1,"porEstado":{"solicitado":1},"porTipo":{"Académico":1},"espaciosMasUsados":{"Salón 10":1},"proximos":[]}}@AngBan2x ➜ /workspaces/Eventer (main) $ 
+@AngBan2x ➜ /workspaces/Eventer (main) $ curl -X DELETE http://localhost:3000/api/eventos/ID_AQUÍ
+# Ahora intenta de nuevo el comando del paso 3. ¡Ahora sí debería dejarte!
+@AngBan2x ➜ /workspaces/Eventer (main) $ curl -X DELETE http://localhost:3000/api/eventos/1784589788181
+{"success":true,"message":"Evento eliminado lógicamente"}@AngBan2x ➜ /workspaces/Eventer (main) $ 
+@AngBan2x ➜ /workspaces/Eventer (main) $ curl -X POST http://localhost:3000/api/eventos -H "Content-Type: application/json" -d '{"nombre": "Reunión Directiva", "fecha": "2023-12-01", "hora": "08:00", "espacio": "Salón 10", "responsable": "Decano"}'
+{"success":true,"data":{"id":1784590046572,"nombre":"Reunión Directiva","fecha":"2023-12-01","hora":"08:00","espacio":"Salón 10","responsable":"Decano","tipo":"Académico","estado":"solicitado","eliminado":false,"createdAt":"2026-07-20T23:27:26.572Z"}}Y me dio los resultados en  db.json
+
+---
+
+¡Excelente trabajo! Ver los resultados en `db.json` confirma que la lógica de **conflictos**, **eliminación lógica** y **persistencia** está funcionando a la perfección. Has pasado la prueba de fuego del backend.
+
+Como ya tenemos los cimientos sólidos, es momento de construir la **interfaz de usuario (Frontend)**. Para mantenerlo profesional y alineado con la asignación, utilizaremos una estructura de **Single Page Application (SPA)** sencilla:
+1.  **HTML5 + CSS (Bootstrap 5)** para un diseño moderno y rápido.
+2.  **JavaScript (Fetch API)** para comunicarnos con tu backend sin recargar la página.
+
+### Paso 1: Configurar Express para servir archivos estáticos
+
+Primero, debemos decirle a Express que busque los archivos visuales en una carpeta llamada `public`.
+
+```javascript src/app.js
+// ... (mantenemos los imports)
+const path = require('path'); // Añade este import al inicio
+
+// ... después de app.use(express.json());
+app.use(express.static('public')); 
+
+// ... el resto de las rutas se mantiene igual
+```
+
+### Paso 2: Estructura de archivos del Frontend
+
+Crea la siguiente carpeta y archivos en la raíz de tu proyecto:
+```text
+facyt-eventos/
+├── public/
+│   ├── index.html    # Estructura principal
+│   ├── style.css     # Estética (FaCyT look & feel)
+│   └── app.js        # Lógica: peticiones y manipulación del DOM
+```
+
+---
+
+### 3. Código del Frontend
+
+#### `public/index.html` (Estructura)
+He diseñado una interfaz con pestañas: **Dashboard**, **Eventos** y **Espacios**.
+
+```html public/index.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaCyT - Gestión de Eventos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-primary mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">Sistema de Eventos FaCyT</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Dashboard / Resumen -->
+        <div id="resumen-container" class="row mb-4">
+            <!-- Se llena con JS -->
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <ul class="nav nav-tabs card-header-tabs" id="myTab" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-eventos">Eventos</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-nuevo">Nuevo Evento</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-espacios">Espacios</button></li>
+                </ul>
+            </div>
+            <div class="card-body tab-content">
+                
+                <!-- Lista de Eventos -->
+                <div class="tab-pane fade show active" id="tab-eventos">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Evento</th>
+                                <th>Fecha/Hora</th>
+                                <th>Espacio</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-eventos"></tbody>
+                    </table>
+                </div>
+
+                <!-- Formulario Nuevo Evento -->
+                <div class="tab-pane fade" id="tab-nuevo">
+                    <form id="form-evento" class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nombre del Evento</label>
+                            <input type="text" class="form-control" id="nombre" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="fecha" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Hora</label>
+                            <input type="time" class="form-control" id="hora" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Espacio</label>
+                            <select class="form-select" id="select-espacios" required></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Responsable</label>
+                            <input type="text" class="form-control" id="responsable" required>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Registrar Evento</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Espacios -->
+                <div class="tab-pane fade" id="tab-espacios">
+                    <div id="lista-espacios" class="row"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+```
+
+#### `public/app.js` (Lógica Frontend)
+Este archivo hace la "magia" de conectar la pantalla con tu API.
+
+```javascript public/app.js
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+    loadEventos();
+    loadEspacios();
+
+    // Manejar el formulario de nuevo evento
+    document.getElementById('form-evento').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            nombre: document.getElementById('nombre').value,
+            fecha: document.getElementById('fecha').value,
+            hora: document.getElementById('hora').value,
+            espacio: document.getElementById('select-espacios').value,
+            responsable: document.getElementById('responsable').value
+        };
+
+        const resp = await fetch('/api/eventos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await resp.json();
+        if (result.success) {
+            alert('Evento creado con éxito');
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    });
+});
+
+async function loadDashboard() {
+    const resp = await fetch('/api/eventos/resumen');
+    const { data } = await resp.json();
+    const container = document.getElementById('resumen-container');
+    
+    container.innerHTML = `
+        <div class="col-md-4">
+            <div class="card bg-primary text-white p-3">
+                <h5>Total Eventos</h5>
+                <h2 class="mb-0">${data.total}</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white p-3">
+                <h5>Próximo Evento</h5>
+                <p class="mb-0">${data.proximos[0]?.nombre || 'Ninguno'}</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white p-3">
+                <h5>Espacio más usado</h5>
+                <p class="mb-0">${Object.keys(data.espaciosMasUsados)[0] || 'N/A'}</p>
+            </div>
+        </div>
+    `;
+}
+
+async function loadEventos() {
+    const resp = await fetch('/api/eventos');
+    const { data } = await resp.json();
+    const tbody = document.getElementById('lista-eventos');
+    tbody.innerHTML = data.map(e => `
+        <tr>
+            <td><strong>${e.nombre}</strong><br><small class="text-muted">${e.responsable}</small></td>
+            <td>${e.fecha}<br>${e.hora}</td>
+            <td><span class="badge bg-secondary">${e.espacio}</span></td>
+            <td><span class="badge ${e.estado === 'aprobado' ? 'bg-success' : 'bg-warning'}">${e.estado}</span></td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="eliminarEvento(${e.id})">Eliminar</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function loadEspacios() {
+    const resp = await fetch('/api/espacios');
+    const { data } = await resp.json();
+    
+    // Llenar el select del formulario
+    const select = document.getElementById('select-espacios');
+    select.innerHTML = data.map(es => `<option value="${es.nombre}">${es.nombre}</option>`).join('');
+
+    // Llenar la lista visual de espacios
+    const container = document.getElementById('lista-espacios');
+    container.innerHTML = data.map(es => `
+        <div class="col-md-4 mb-3">
+            <div class="border p-2 rounded">
+                <h6>${es.nombre}</h6>
+                <small>Tipo: ${es.tipo} | Capacidad: ${es.capacidad}</small>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function eliminarEvento(id) {
+    if (confirm('¿Estás seguro de eliminar este evento?')) {
+        await fetch(`/api/eventos/${id}`, { method: 'DELETE' });
+        location.reload();
+    }
+}
+```
+
+### ¿Qué logramos con este Frontend?
+
+1.  **Vista de Resumen (Req. f):** Tienes tarjetas con el total, el próximo evento y el espacio más usado.
+2.  **Consulta (Req. b):** Una tabla clara con estados y responsables.
+3.  **Registro (Req. a):** Formulario directo que utiliza los espacios registrados en la base de datos.
+4.  **Verificación de Conflictos (Req. d):** Si intentas registrar un evento que choca, el JavaScript capturará el error `409` del backend y mostrará el mensaje de alerta al usuario.
+5.  **Edición/Eliminación (Req. i):** Botón para eliminar (lógicamente) que actualiza la vista de inmediato.
+
+**Próximos pasos:**
+1. Crea los archivos en la carpeta `public`.
+2. Actualiza `src/app.js` para servir la carpeta `public`.
+3. Abre en tu navegador: `http://localhost:3000`
+
+¿Te gustaría que personalicemos los colores para que coincidan exactamente con el manual de marca de la FaCyT o procedemos a documentar el uso de la IA para tu bitácora?
