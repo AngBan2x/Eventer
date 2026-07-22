@@ -22,7 +22,38 @@
       "rol": "estudiante"
     }
   ],
-  "asistencias": [],
+  "asistencias": [
+    {
+      "id": 1784694348834,
+      "evento_id": 1784654541106,
+      "usuario_id": 101,
+      "fecha_registro": "2026-07-22T04:25:48.834Z"
+    },
+    {
+      "id": 1784694524689,
+      "evento_id": 1784694471487,
+      "usuario_id": 101,
+      "fecha_registro": "2026-07-22T04:28:44.689Z"
+    },
+    {
+      "id": 1784694765994,
+      "evento_id": 1784694471487,
+      "usuario_id": 102,
+      "fecha_registro": "2026-07-22T04:32:45.994Z"
+    },
+    {
+      "id": 1784694778466,
+      "evento_id": 1784694471487,
+      "usuario_id": 1,
+      "fecha_registro": "2026-07-22T04:32:58.466Z"
+    },
+    {
+      "id": 1784695901838,
+      "evento_id": 1784654541106,
+      "usuario_id": 102,
+      "fecha_registro": "2026-07-22T04:51:41.838Z"
+    }
+  ],
   "eventos": [
     {
       "id": 1784589788181,
@@ -60,10 +91,11 @@
       "espacio": "Salón 10",
       "responsable": "Angel Bandres",
       "tipo": "Académico",
-      "estado": "solicitado",
+      "estado": "aprobado",
       "eliminado": false,
       "createdAt": "2026-07-21T03:01:04.514Z",
-      "usuario_id": 2
+      "usuario_id": 2,
+      "updatedAt": "2026-07-22T04:53:41.184Z"
     },
     {
       "id": 1784654541106,
@@ -73,10 +105,53 @@
       "espacio": "Hall de Laboratorios",
       "responsable": "Angel Bandres y Joshtin Mejías",
       "tipo": "Académico",
-      "estado": "solicitado",
+      "estado": "aprobado",
       "eliminado": false,
       "createdAt": "2026-07-21T17:22:21.106Z",
-      "usuario_id": 2
+      "usuario_id": 2,
+      "updatedAt": "2026-07-22T04:53:42.244Z"
+    },
+    {
+      "id": 1784694471487,
+      "usuario_id": 102,
+      "nombre": "Diddy Party",
+      "fecha": "2026-07-23",
+      "hora": "21:00",
+      "espacio": "Plaza Roja",
+      "responsable": "Agustín Mejías",
+      "tipo": "Académico",
+      "estado": "aprobado",
+      "eliminado": false,
+      "createdAt": "2026-07-22T04:27:51.487Z",
+      "updatedAt": "2026-07-22T04:53:43.216Z"
+    },
+    {
+      "id": 1784695947771,
+      "usuario_id": 102,
+      "nombre": "Super Jueves",
+      "fecha": "2026-07-23",
+      "hora": "07:30",
+      "espacio": "Salón 10",
+      "responsable": "Agustín Mejías",
+      "tipo": "Académico",
+      "estado": "cancelado",
+      "eliminado": true,
+      "createdAt": "2026-07-22T04:52:27.771Z",
+      "updatedAt": "2026-07-22T04:53:54.689Z",
+      "deletedAt": "2026-07-22T04:53:57.685Z"
+    },
+    {
+      "id": 1784696298499,
+      "usuario_id": 102,
+      "nombre": "Super Jueves",
+      "fecha": "2026-07-23",
+      "hora": "21:00",
+      "espacio": "Salón 10",
+      "responsable": "Agustín Mejías",
+      "tipo": "Académico",
+      "estado": "solicitado",
+      "eliminado": false,
+      "createdAt": "2026-07-22T04:58:18.499Z"
     }
   ],
   "espacios": [
