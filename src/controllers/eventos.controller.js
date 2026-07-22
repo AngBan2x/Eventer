@@ -20,29 +20,20 @@ const getEventos = async (req, res) => {
         const db = await readDB();
         const asistencias = db.asistencias || [];
 
-        // Extraer rol e ID del usuario autenticado
         const rol = req.user ? req.user.rol : 'estudiante';
         const usuarioId = req.user ? Number(req.user.id) : null;
 
         const activos = (db.eventos || [])
             .filter(e => {
-                // 1. Descartar eventos eliminados
                 if (e.eliminado) return false;
-
-                // 2. Administrador ve absolutamente todos los eventos
                 if (rol === 'admin') return true;
-
-                // 3. Organizador ve eventos aprobados Y las solicitudes que él creó
                 if (rol === 'organizador') {
                     return e.estado === 'aprobado' || Number(e.usuario_id) === usuarioId;
                 }
-
-                // 4. Estudiantes / Usuarios por defecto: SOLO ven eventos aprobados
                 return e.estado === 'aprobado';
             })
             .map(evento => {
                 const asistenciasDelEvento = asistencias.filter(a => Number(a.evento_id) === Number(evento.id));
-                
                 return {
                     ...evento,
                     asistencias: asistenciasDelEvento.length,
@@ -81,6 +72,7 @@ const createEvento = async (req, res) => {
             responsable: responsable || (req.user ? req.user.nombre : "Sin responsable"),
             tipo: tipo || "Académico",
             estado: estado || "solicitado",
+            nota_rechazo: null,
             eliminado: false,
             createdAt: new Date().toISOString()
         };
@@ -120,14 +112,22 @@ const updateEvento = async (req, res) => {
             }
         }
 
-        const nuevoEstado = (req.user && req.user.rol !== 'admin' && (eventoActual.estado === 'rechazado' || eventoActual.estado === 'cancelado'))
-            ? 'solicitado'
-            : (updates.estado || eventoActual.estado);
+        // Si lo edita un organizador/usuario y el evento estaba aprobado, rechazado o cancelado, vuelve a 'solicitado'
+        let nuevoEstado = updates.estado || eventoActual.estado;
+        let nuevaNotaRechazo = eventoActual.nota_rechazo;
+
+        if (req.user && req.user.rol !== 'admin') {
+            if (['aprobado', 'rechazado', 'cancelado'].includes(eventoActual.estado)) {
+                nuevoEstado = 'solicitado';
+                nuevaNotaRechazo = null; // Se limpia la nota de rechazo al pasar a solicitado
+            }
+        }
 
         db.eventos[index] = { 
             ...eventoActual, 
             ...updates, 
             estado: nuevoEstado,
+            nota_rechazo: nuevaNotaRechazo,
             updatedAt: new Date().toISOString() 
         };
 
@@ -141,7 +141,7 @@ const updateEvento = async (req, res) => {
 const updateEstado = async (req, res) => {
     try {
         const { id } = req.params;
-        const { estado } = req.body;
+        const { estado, motivo } = req.body; // Recibe el motivo opcional al rechazar
         
         if (!['aprobado', 'rechazado', 'cancelado'].includes(estado)) {
             return res.status(400).json({ success: false, message: "Estado no válido" });
@@ -155,6 +155,14 @@ const updateEstado = async (req, res) => {
         }
 
         db.eventos[index].estado = estado;
+
+        // Asignar o limpiar nota de rechazo según corresponda
+        if (estado === 'rechazado') {
+            db.eventos[index].nota_rechazo = motivo || null;
+        } else if (estado === 'aprobado') {
+            db.eventos[index].nota_rechazo = null;
+        }
+
         db.eventos[index].updatedAt = new Date().toISOString();
 
         await writeDB(db);

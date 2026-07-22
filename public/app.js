@@ -1,3 +1,6 @@
+// Variable global auxiliar para guardar eventos cargados
+let eventosCache = [];
+
 document.addEventListener('DOMContentLoaded', () => {
     actualizarInterfazSegunRol();
     loadDashboard();
@@ -31,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Evento solicitado con éxito. Quedará en espera de aprobación.');
             document.getElementById('form-evento').reset();
             
-            // Volver a la pestaña de eventos y recargar
             const tabEventos = new bootstrap.Tab(document.getElementById('btn-tab-eventos'));
             tabEventos.show();
             loadEventos();
@@ -40,9 +42,62 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error: ' + result.message);
         }
     });
+
+    // Listener para guardar cambios al editar un evento
+    document.getElementById('form-editar-evento').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+
+        const data = {
+            nombre: document.getElementById('edit-nombre').value,
+            fecha: document.getElementById('edit-fecha').value,
+            hora: document.getElementById('edit-hora').value,
+            espacio: document.getElementById('edit-select-espacios').value,
+            responsable: document.getElementById('edit-responsable').value
+        };
+
+        const result = await apiFetch(`/api/eventos/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+
+        if (result.success) {
+            alert('Evento actualizado correctamente. Si estaba aprobado/rechazado, ha pasado a estado "solicitado" para revisión.');
+            const modalEl = document.getElementById('modalEditarEvento');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            loadEventos();
+            loadDashboard();
+        } else {
+            alert('Error al actualizar: ' + result.message);
+        }
+    });
+
+    // Listener para confirmar rechazo con nota opcional
+    document.getElementById('form-rechazar-evento').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('rechazar-id').value;
+        const motivo = document.getElementById('rechazar-motivo').value.trim();
+
+        const result = await apiFetch(`/api/eventos/${id}/estado`, {
+            method: 'PUT',
+            body: JSON.stringify({ estado: 'rechazado', motivo })
+        });
+
+        if (result.success) {
+            const modalEl = document.getElementById('modalRechazarEvento');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            loadEventos();
+            loadDashboard();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    });
 });
 
-// Función auxiliar para peticiones HTTP con encabezados de autenticación
 async function apiFetch(url, options = {}) {
     const userSelect = document.getElementById('user-selector');
     const user = JSON.parse(userSelect.value);
@@ -62,15 +117,13 @@ function getCurrentUser() {
     return JSON.parse(document.getElementById('user-selector').value);
 }
 
-// Oculta/muestra elementos según las facultades del rol actual
 function actualizarInterfazSegunRol() {
     const user = getCurrentUser();
     const navItemNuevo = document.getElementById('nav-item-nuevo');
 
     if (user.rol === 'estudiante') {
-        navItemNuevo.classList.add('d-none'); // Ocultar pestaña "Solicitar Evento"
+        navItemNuevo.classList.add('d-none');
         
-        // Si el estudiante estaba parado en la pestaña de nuevo evento, mandarlo a la lista
         const tabNuevo = document.getElementById('tab-nuevo');
         if (tabNuevo && tabNuevo.classList.contains('active')) {
             const btnEventos = document.getElementById('btn-tab-eventos');
@@ -78,7 +131,7 @@ function actualizarInterfazSegunRol() {
             tab.show();
         }
     } else {
-        navItemNuevo.classList.remove('d-none'); // Mostrar para organizadores y admin
+        navItemNuevo.classList.remove('d-none');
     }
 }
 
@@ -88,7 +141,9 @@ async function loadDashboard() {
     
     if (!data) return;
 
-    const espacioTop = Object.keys(data.espaciosMasUsados || {})[0] || 'N/A';
+    // Obtener las claves y ordenarlas descendentemente según la frecuencia
+    const espacios = data.espaciosMasUsados || {};
+    const espacioTop = Object.keys(espacios).sort((a, b) => espacios[b] - espacios[a])[0] || 'N/A';
 
     container.innerHTML = `
         <div class="col-md-4">
@@ -105,7 +160,7 @@ async function loadDashboard() {
         </div>
         <div class="col-md-4">
             <div class="card bg-info text-white p-3 shadow-sm">
-                <h5>Espacio más usado</h5>
+                <h5>Espacio más solicitado</h5>
                 <p class="mb-0">${espacioTop}</p>
             </div>
         </div>
@@ -119,39 +174,60 @@ async function loadEventos() {
 
     if (!data) return;
 
+    eventosCache = data;
+
     tbody.innerHTML = data.map(e => {
         let badgeClass = 'bg-warning text-dark';
         if (e.estado === 'aprobado') badgeClass = 'bg-success';
         if (e.estado === 'rechazado') badgeClass = 'bg-danger';
         if (e.estado === 'cancelado') badgeClass = 'bg-secondary';
 
-        // Conteo dinámico de asistencias desde el objeto que envía el backend
         const totalAsistentes = typeof e.asistencias === 'number' ? e.asistencias : 0;
+        const esOwner = Number(e.usuario_id) === Number(user.id);
 
         let acciones = '';
 
-        // Acciones Administrador
+        // Botón Editar: visible SOLO para el organizador/creador del evento
+        if (esOwner) {
+            acciones += `<button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${e.id})">Editar</button>`;
+        }
+
+        // Acciones del Administrador
         if (user.rol === 'admin') {
             if (e.estado !== 'aprobado') {
                 acciones += `<button class="btn btn-sm btn-success me-1" onclick="cambiarEstado(${e.id}, 'aprobado')">Aprobar</button>`;
             }
             if (e.estado !== 'rechazado') {
-                acciones += `<button class="btn btn-sm btn-warning me-1" onclick="cambiarEstado(${e.id}, 'rechazado')">Rechazar</button>`;
+                acciones += `<button class="btn btn-sm btn-warning me-1" onclick="abrirModalRechazar(${e.id})">Rechazar</button>`;
             }
-            acciones += `<button class="btn btn-sm btn-danger" onclick="eliminarEvento(${e.id})">Eliminar</button>`;
+            acciones += `<button class="btn btn-sm btn-danger me-1" onclick="eliminarEvento(${e.id})">Eliminar</button>`;
         } 
         
-        // El botón "Asistir" SOLO se muestra si el evento está aprobado
+        // Botón "Asistir" para eventos aprobados
         if (e.estado === 'aprobado') {
-            acciones += `<button class="btn btn-sm btn-outline-primary ms-1" onclick="marcarAsistencia(${e.id})">Asistir</button>`;
+            acciones += `<button class="btn btn-sm btn-outline-success ms-1" onclick="marcarAsistencia(${e.id})">Asistir</button>`;
+        }
+
+        // Nota de rechazo (si existe y el evento fue rechazado)
+        let htmlNota = '';
+        if (e.estado === 'rechazado' && e.nota_rechazo) {
+            htmlNota = `<div class="mt-1 small text-danger border-start border-danger ps-2 bg-light rounded py-1">
+                <strong>Motivo de rechazo:</strong> ${e.nota_rechazo}
+            </div>`;
         }
 
         return `
             <tr>
-                <td><strong>${e.nombre}</strong><br><small class="text-muted">${e.responsable || 'Sin responsable'}</small></td>
+                <td>
+                    <strong>${e.nombre}</strong><br>
+                    <small class="text-muted">${e.responsable || 'Sin responsable'}</small>
+                </td>
                 <td>${e.fecha}<br><small class="text-muted">${e.hora}</small></td>
                 <td><span class="badge bg-secondary">${e.espacio}</span></td>
-                <td><span class="badge ${badgeClass}">${e.estado}</span></td>
+                <td>
+                    <span class="badge ${badgeClass}">${e.estado}</span>
+                    ${htmlNota}
+                </td>
                 <td>
                     <span class="badge bg-light text-dark border">
                         👥 ${totalAsistentes} confirmados
@@ -168,18 +244,48 @@ async function loadEspacios() {
     if (!data) return;
 
     const select = document.getElementById('select-espacios');
-    select.innerHTML = data.map(es => `<option value="${es.nombre}">${es.nombre}</option>`).join('');
+    const selectEdit = document.getElementById('edit-select-espacios');
+
+    const optionsHtml = data.map(es => `<option value="${es.nombre}">${es.nombre}</option>`).join('');
+
+    if (select) select.innerHTML = optionsHtml;
+    if (selectEdit) selectEdit.innerHTML = optionsHtml;
 
     const container = document.getElementById('lista-espacios');
-    container.innerHTML = data.map(es => `
-        <div class="col-md-4 mb-3">
-            <div class="border p-3 rounded bg-white shadow-sm">
-                <h6 class="fw-bold mb-1">${es.nombre}</h6>
-                <small class="text-muted d-block">Tipo: ${es.tipo || 'N/A'}</small>
-                <small class="text-muted d-block">Capacidad: ${es.capacidad || 'N/A'} personas</small>
+    if (container) {
+        container.innerHTML = data.map(es => `
+            <div class="col-md-4 mb-3">
+                <div class="border p-3 rounded bg-white shadow-sm">
+                    <h6 class="fw-bold mb-1">${es.nombre}</h6>
+                    <small class="text-muted d-block">Tipo: ${es.tipo || 'N/A'}</small>
+                    <small class="text-muted d-block">Capacidad: ${es.capacidad || 'N/A'} personas</small>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `).join('');
+    }
+}
+
+function abrirModalEditar(id) {
+    const evento = eventosCache.find(e => e.id == id);
+    if (!evento) return;
+
+    document.getElementById('edit-id').value = evento.id;
+    document.getElementById('edit-nombre').value = evento.nombre;
+    document.getElementById('edit-fecha').value = evento.fecha;
+    document.getElementById('edit-hora').value = evento.hora;
+    document.getElementById('edit-select-espacios').value = evento.espacio;
+    document.getElementById('edit-responsable').value = evento.responsable || '';
+
+    const modal = new bootstrap.Modal(document.getElementById('modalEditarEvento'));
+    modal.show();
+}
+
+function abrirModalRechazar(id) {
+    document.getElementById('rechazar-id').value = id;
+    document.getElementById('rechazar-motivo').value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('modalRechazarEvento'));
+    modal.show();
 }
 
 async function cambiarEstado(id, estado) {

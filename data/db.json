@@ -91,11 +91,12 @@
       "espacio": "Salón 10",
       "responsable": "Angel Bandres",
       "tipo": "Académico",
-      "estado": "aprobado",
-      "eliminado": false,
+      "estado": "cancelado",
+      "eliminado": true,
       "createdAt": "2026-07-21T03:01:04.514Z",
       "usuario_id": 2,
-      "updatedAt": "2026-07-22T04:53:41.184Z"
+      "updatedAt": "2026-07-22T04:53:41.184Z",
+      "deletedAt": "2026-07-22T22:51:07.321Z"
     },
     {
       "id": 1784654541106,
@@ -120,10 +121,11 @@
       "espacio": "Plaza Roja",
       "responsable": "Agustín Mejías",
       "tipo": "Académico",
-      "estado": "aprobado",
-      "eliminado": false,
+      "estado": "cancelado",
+      "eliminado": true,
       "createdAt": "2026-07-22T04:27:51.487Z",
-      "updatedAt": "2026-07-22T04:53:43.216Z"
+      "updatedAt": "2026-07-22T04:53:43.216Z",
+      "deletedAt": "2026-07-22T22:50:59.606Z"
     },
     {
       "id": 1784695947771,
@@ -145,13 +147,30 @@
       "usuario_id": 102,
       "nombre": "Super Jueves",
       "fecha": "2026-07-23",
-      "hora": "21:00",
-      "espacio": "Salón 10",
+      "hora": "18:00",
+      "espacio": "Hall de Laboratorios",
       "responsable": "Agustín Mejías",
       "tipo": "Académico",
       "estado": "solicitado",
       "eliminado": false,
-      "createdAt": "2026-07-22T04:58:18.499Z"
+      "createdAt": "2026-07-22T04:58:18.499Z",
+      "updatedAt": "2026-07-22T22:55:28.036Z",
+      "nota_rechazo": null
+    },
+    {
+      "id": 1784760628860,
+      "usuario_id": 102,
+      "nombre": "Bandres party",
+      "fecha": "2026-07-23",
+      "hora": "22:00",
+      "espacio": "Plaza Roja",
+      "responsable": "Yasmín Lamal",
+      "tipo": "Académico",
+      "estado": "aprobado",
+      "nota_rechazo": null,
+      "eliminado": false,
+      "createdAt": "2026-07-22T22:50:28.860Z",
+      "updatedAt": "2026-07-22T22:50:38.671Z"
     }
   ],
   "espacios": [
