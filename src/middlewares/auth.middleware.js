@@ -1,9 +1,10 @@
+// Middleware estricto: exige que el usuario esté autenticado
 const verifyAuth = (req, res, next) => {
     const userId = req.headers['x-user-id'];
     const userRole = req.headers['x-user-role'];
 
-    if (!userId || !userRole) {
-        return res.status(401).json({ mensaje: "No autenticado. Se requieren headers x-user-id y x-user-role." });
+    if (!userId || !userRole || userRole === 'invitado') {
+        return res.status(401).json({ mensaje: "No autenticado. Inicia sesión para continuar." });
     }
 
     req.user = {
@@ -14,6 +15,24 @@ const verifyAuth = (req, res, next) => {
     next();
 };
 
+// Middleware opcional: si vienen headers asigna req.user, si no, permite continuar como invitado (req.user = null)
+const optionalAuth = (req, res, next) => {
+    const userId = req.headers['x-user-id'];
+    const userRole = req.headers['x-user-role'];
+
+    if (userId && userRole && userRole !== 'invitado') {
+        req.user = {
+            id: parseInt(userId),
+            rol: userRole
+        };
+    } else {
+        req.user = null;
+    }
+
+    next();
+};
+
+// Middleware de autorización por roles
 const authorize = (roles = []) => {
     return (req, res, next) => {
         if (!req.user) {
@@ -28,4 +47,4 @@ const authorize = (roles = []) => {
     };
 };
 
-module.exports = { verifyAuth, authorize };
+module.exports = { verifyAuth, optionalAuth, authorize };

@@ -21,19 +21,21 @@ const getEventos = async (req, res) => {
         const asistencias = db.asistencias || [];
 
         const rol = req.user ? req.user.rol : 'estudiante';
-        const usuarioId = req.user ? Number(req.user.id) : null;
+        const usuarioId = req.user ? String(req.user.id) : null;
 
         const activos = (db.eventos || [])
             .filter(e => {
                 if (e.eliminado) return false;
                 if (rol === 'admin') return true;
                 if (rol === 'organizador') {
-                    return e.estado === 'aprobado' || Number(e.usuario_id) === usuarioId;
+                    // Normalización de ID para evitar fallos de comparación String vs Number
+                    const esOwner = usuarioId && String(e.usuario_id) === usuarioId;
+                    return e.estado === 'aprobado' || esOwner;
                 }
                 return e.estado === 'aprobado';
             })
             .map(evento => {
-                const asistenciasDelEvento = asistencias.filter(a => Number(a.evento_id) === Number(evento.id));
+                const asistenciasDelEvento = asistencias.filter(a => String(a.evento_id) === String(evento.id));
                 return {
                     ...evento,
                     asistencias: asistenciasDelEvento.length,
@@ -71,7 +73,7 @@ const createEvento = async (req, res) => {
             nombre, fecha, hora, espacio,
             responsable: responsable || (req.user ? req.user.nombre : "Sin responsable"),
             tipo: tipo || "Académico",
-            estado: estado || "solicitado",
+            estado: estado || "pendiente", // Normalizado a 'pendiente'
             nota_rechazo: null,
             eliminado: false,
             createdAt: new Date().toISOString()
@@ -93,14 +95,14 @@ const updateEvento = async (req, res) => {
         const updates = req.body;
         const db = await readDB();
         
-        const index = db.eventos.findIndex(e => e.id == id);
+        const index = db.eventos.findIndex(e => String(e.id) === String(id));
         if (index === -1 || db.eventos[index].eliminado) {
             return res.status(404).json({ success: false, message: "Evento no encontrado" });
         }
 
         const eventoActual = db.eventos[index];
 
-        if (req.user && eventoActual.usuario_id && eventoActual.usuario_id != req.user.id && req.user.rol !== 'admin') {
+        if (req.user && eventoActual.usuario_id && String(eventoActual.usuario_id) !== String(req.user.id) && req.user.rol !== 'admin') {
             return res.status(403).json({ success: false, message: "No tienes permiso para modificar este evento" });
         }
 
@@ -112,15 +114,18 @@ const updateEvento = async (req, res) => {
             }
         }
 
-        // Si lo edita un organizador/usuario y el evento estaba aprobado, rechazado o cancelado, vuelve a 'solicitado'
-        let nuevoEstado = updates.estado || eventoActual.estado;
+        // Determinar nuevo estado (Si lo edita un organizador y estaba en estado previo final, vuelve a 'pendiente')
+        let nuevoEstado = updates.estado || 'pendiente';
         let nuevaNotaRechazo = eventoActual.nota_rechazo;
 
         if (req.user && req.user.rol !== 'admin') {
             if (['aprobado', 'rechazado', 'cancelado'].includes(eventoActual.estado)) {
-                nuevoEstado = 'solicitado';
-                nuevaNotaRechazo = null; // Se limpia la nota de rechazo al pasar a solicitado
+                nuevoEstado = 'pendiente'; // <-- CORREGIDO: Ahora asigna 'pendiente'
+                nuevaNotaRechazo = null;   // Se limpia la nota de rechazo previa
             }
+        } else if (updates.estado) {
+            nuevoEstado = updates.estado;
+            if (nuevoEstado === 'pendiente') nuevaNotaRechazo = null;
         }
 
         db.eventos[index] = { 
@@ -141,14 +146,14 @@ const updateEvento = async (req, res) => {
 const updateEstado = async (req, res) => {
     try {
         const { id } = req.params;
-        const { estado, motivo } = req.body; // Recibe el motivo opcional al rechazar
+        const { estado, motivo } = req.body;
         
-        if (!['aprobado', 'rechazado', 'cancelado'].includes(estado)) {
+        if (!['aprobado', 'rechazado', 'cancelado', 'pendiente'].includes(estado)) {
             return res.status(400).json({ success: false, message: "Estado no válido" });
         }
 
         const db = await readDB();
-        const index = db.eventos.findIndex(e => e.id == id);
+        const index = db.eventos.findIndex(e => String(e.id) === String(id));
 
         if (index === -1 || db.eventos[index].eliminado) {
             return res.status(404).json({ success: false, message: "Evento no encontrado" });
@@ -156,17 +161,16 @@ const updateEstado = async (req, res) => {
 
         db.eventos[index].estado = estado;
 
-        // Asignar o limpiar nota de rechazo según corresponda
         if (estado === 'rechazado') {
             db.eventos[index].nota_rechazo = motivo || null;
-        } else if (estado === 'aprobado') {
+        } else if (estado === 'aprobado' || estado === 'pendiente') {
             db.eventos[index].nota_rechazo = null;
         }
 
         db.eventos[index].updatedAt = new Date().toISOString();
 
         await writeDB(db);
-        res.status(200).json({ success: true, message: `Evento ${estado} con éxito`, data: db.eventos[index] });
+        res.status(200).json({ success: true, message: `Evento cambiado a ${estado} con éxito`, data: db.eventos[index] });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -204,7 +208,7 @@ const deleteEvento = async (req, res) => {
     try {
         const { id } = req.params;
         const db = await readDB();
-        const index = db.eventos.findIndex(e => e.id == id);
+        const index = db.eventos.findIndex(e => String(e.id) === String(id));
 
         if (index === -1) return res.status(404).json({ success: false, message: "Evento no encontrado" });
 
@@ -231,7 +235,7 @@ const marcarAsistencia = async (req, res) => {
         const db = await readDB();
         if (!db.asistencias) db.asistencias = [];
 
-        const evento = (db.eventos || []).find(e => e.id == id && !e.eliminado);
+        const evento = (db.eventos || []).find(e => String(e.id) === String(id) && !e.eliminado);
         if (!evento) {
             return res.status(404).json({ success: false, message: "Evento no encontrado" });
         }
@@ -240,7 +244,7 @@ const marcarAsistencia = async (req, res) => {
             return res.status(400).json({ success: false, message: "Solo puedes marcar asistencia en eventos aprobados" });
         }
 
-        const yaRegistro = db.asistencias.some(a => a.evento_id == id && a.usuario_id == usuario_id);
+        const yaRegistro = db.asistencias.some(a => String(a.evento_id) === String(id) && String(a.usuario_id) === String(usuario_id));
         if (yaRegistro) {
             return res.status(400).json({ success: false, message: "Ya has registrado tu asistencia para este evento" });
         }
@@ -265,7 +269,7 @@ const obtenerAsistencias = async (req, res) => {
     try {
         const { id } = req.params;
         const db = await readDB();
-        const asistencias = (db.asistencias || []).filter(a => a.evento_id == id);
+        const asistencias = (db.asistencias || []).filter(a => String(a.evento_id) === String(id));
         res.status(200).json({ success: true, data: asistencias });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

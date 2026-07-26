@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const eventosController = require('../controllers/eventos.controller');
-const { verifyAuth, authorize } = require('../middlewares/auth.middleware');
+const { verifyAuth, optionalAuth, authorize } = require('../middlewares/auth.middleware');
 
 // Rutas públicas / lectura
 router.get('/resumen', eventosController.getResumen);
 
-// Se agrega verifyAuth para que el controlador conozca el rol del usuario que consulta
-router.get('/', verifyAuth, eventosController.getEventos);
+// Permite a usuarios autenticados e invitados (modo lectura) ver los eventos
+router.get('/', optionalAuth, eventosController.getEventos);
 
 router.get('/:id/asistencias', eventosController.obtenerAsistencias);
 
