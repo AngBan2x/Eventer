@@ -74,6 +74,18 @@
       "evento_id": 1784760628860,
       "usuario_id": 1785090296202,
       "fecha_registro": "2026-07-26T18:25:13.497Z"
+    },
+    {
+      "id": 1785101053565,
+      "evento_id": 1785100996478,
+      "usuario_id": 1785090296202,
+      "fecha_registro": "2026-07-26T21:24:13.565Z"
+    },
+    {
+      "id": 1785101799290,
+      "evento_id": 1785099235276,
+      "usuario_id": 1785090296202,
+      "fecha_registro": "2026-07-26T21:36:39.290Z"
     }
   ],
   "eventos": [
@@ -90,9 +102,10 @@
       "nota_rechazo": null,
       "eliminado": false,
       "createdAt": "2026-07-26T20:53:55.276Z",
-      "updatedAt": "2026-07-26T20:55:05.615Z",
-      "descripcion": "",
-      "motivo": ""
+      "updatedAt": "2026-07-26T21:36:29.163Z",
+      "descripcion": "Hola mundo",
+      "motivo": "",
+      "description": "Hola mundo"
     },
     {
       "id": 1785099405324,
@@ -108,6 +121,39 @@
       "eliminado": false,
       "createdAt": "2026-07-26T20:56:45.324Z",
       "updatedAt": "2026-07-26T20:57:21.747Z"
+    },
+    {
+      "id": 1785100996478,
+      "usuario_id": 2,
+      "nombre": "Renuncia de Agustín",
+      "fecha": "2026-07-30",
+      "hora": "06:00",
+      "espacio": "Salón 10",
+      "responsable": "Lamine Yamal",
+      "tipo": "Académico",
+      "estado": "pendiente",
+      "nota_rechazo": null,
+      "eliminado": false,
+      "createdAt": "2026-07-26T21:23:16.478Z",
+      "updatedAt": "2026-07-26T21:45:19.477Z",
+      "descripcion": "Prueba de descripcion larga y asi, solo debo rellenar con texto para ver que tal se ve",
+      "description": "Prueba de descripcion larga y asi, solo debo rellenar con texto para ver que tal se ve",
+      "motivo": ""
+    },
+    {
+      "id": 1785101233590,
+      "usuario_id": 2,
+      "nombre": "Argentina España",
+      "fecha": "2026-07-30",
+      "hora": "23:12",
+      "espacio": "Salón 10",
+      "responsable": "Josemi",
+      "tipo": "Académico",
+      "estado": "aprobado",
+      "nota_rechazo": null,
+      "eliminado": false,
+      "createdAt": "2026-07-26T21:27:13.590Z",
+      "updatedAt": "2026-07-26T21:27:54.874Z"
     }
   ],
   "espacios": [

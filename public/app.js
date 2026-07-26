@@ -91,13 +91,16 @@ document.addEventListener('DOMContentLoaded', () => {
             responsableInput = (user && user.nombre && user.nombre !== 'Invitado') ? user.nombre : 'Sin responsable';
         }
 
+        const descripcionTexto = document.getElementById('descripcion').value.trim();
+
         const data = {
             nombre: document.getElementById('nombre').value.trim(),
             fecha: document.getElementById('fecha').value,
             hora: document.getElementById('hora').value,
             espacio: document.getElementById('select-espacios').value,
             responsable: responsableInput,
-            descripcion: document.getElementById('descripcion').value.trim(),
+            descripcion: descripcionTexto,
+            description: descripcionTexto, // Para asegurar compatibilidad con la API
             usuario_id: user.id,
             estado: 'pendiente'
         };
@@ -125,14 +128,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('form-editar-evento').addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
+        const descripcionTexto = document.getElementById('edit-descripcion').value.trim();
 
         const data = {
             nombre: document.getElementById('edit-nombre').value.trim(),
-            fecha: document.getElementById('edit-fecha').value,
+            fecha: document.getElementById('edit-fecha').value, // CORREGIDO: era id 'fecha'
             hora: document.getElementById('edit-hora').value,
             espacio: document.getElementById('edit-select-espacios').value,
             responsable: document.getElementById('edit-responsable').value.trim(),
-            descripcion: document.getElementById('edit-descripcion').value.trim(),
+            descripcion: descripcionTexto,
+            description: descripcionTexto, // Para asegurar compatibilidad con la API
             estado: 'pendiente',
             nota_rechazo: '',
             motivo: ''
@@ -362,7 +367,6 @@ async function loadDashboard() {
     
     const espacioTop = Object.keys(conteoEspacios).sort((a, b) => conteoEspacios[b] - conteoEspacios[a])[0] || 'N/A';
 
-    // Adaptado con col-12 col-md-4 para apilarse limpiamente en pantallas pequeñas
     container.innerHTML = `
         <div class="col-12 col-md-4 mb-2 mb-md-0">
             <div class="card bg-primary text-white p-3 shadow-sm border-0">
@@ -493,31 +497,43 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
     if (esOwner && !esPasado) {
         const textoBtn = estadoNorm === 'rechazado' ? '✏️ Corregir' : 'Editar';
         const claseBtn = estadoNorm === 'rechazado' ? 'btn-outline-warning text-dark' : 'btn-outline-primary';
-        acciones += `<button class="btn btn-sm ${claseBtn}" onclick="abrirModalEditar(${e.id})">${textoBtn}</button>`;
+        acciones += `<button class="btn btn-sm ${claseBtn} me-1 mb-1" onclick="abrirModalEditar(${e.id})">${textoBtn}</button>`;
     }
 
     if (esAdmin) {
         if (!esPasado) {
             if (estadoNorm !== 'aprobado') {
-                acciones += `<button class="btn btn-sm btn-success" onclick="cambiarEstado(${e.id}, 'aprobado')">Aprobar</button>`;
+                acciones += `<button class="btn btn-sm btn-success me-1 mb-1" onclick="cambiarEstado(${e.id}, 'aprobado')">Aprobar</button>`;
             }
             if (estadoNorm !== 'rechazado') {
-                acciones += `<button class="btn btn-sm btn-warning" onclick="abrirModalRechazar(${e.id})">Rechazar</button>`;
+                acciones += `<button class="btn btn-sm btn-warning me-1 mb-1" onclick="abrirModalRechazar(${e.id})">Rechazar</button>`;
             }
         }
-        acciones += `<button class="btn btn-sm btn-danger" onclick="eliminarEvento(${e.id})">Eliminar</button>`;
+        acciones += `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="eliminarEvento(${e.id})">Eliminar</button>`;
     } 
     
     if (estadoNorm === 'aprobado' && !esPasado) {
-        acciones += `<button class="btn btn-sm btn-outline-success" onclick="marcarAsistencia(${e.id})">Asistir</button>`;
+        acciones += `<button class="btn btn-sm btn-outline-success mb-1" onclick="marcarAsistencia(${e.id})">Asistir</button>`;
     }
 
     const totalAsistentes = typeof e.asistencias === 'number' ? e.asistencias : (e.asistencias?.length || 0);
     const celdaId = esHistorialAdmin ? `<td data-label="ID"><small class="text-muted fw-bold">#${e.id}</small></td>` : '';
 
-    const htmlDescripcion = e.descripcion 
-        ? `<div class="text-muted small fst-italic mt-1">${e.descripcion}</div>` 
-        : '';
+    // CORREGIDO: Sin espacios ni saltos de línea internos en el contenedor HTML
+    const descTexto = (e.descripcion || e.description || '').trim();
+    let htmlDescripcion = '';
+    if (descTexto) {
+        htmlDescripcion = `
+            <div class="text-start mb-2 w-100">
+                <details>
+                    <summary class="text-primary small fw-semibold" style="cursor: pointer; user-select: none; font-size: 0.85rem;">
+                        Ver descripción
+                    </summary>
+                    <div class="mt-2 p-2 bg-light rounded text-dark border-start border-3 border-primary shadow-sm" style="white-space: pre-wrap; font-size: 0.825rem; line-height: 1.35;">${descTexto}</div>
+                </details>
+            </div>
+        `;
+    }
 
     return `
         <tr>
@@ -525,7 +541,6 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
             <td data-label="Evento">
                 <strong>${e.nombre}</strong><br>
                 <small class="text-muted">Resp: ${e.responsable || 'Sin responsable'}</small>
-                ${htmlDescripcion}
             </td>
             <td data-label="Fecha/Hora">${e.fecha}<br><small class="text-muted">${e.hora}</small></td>
             <td data-label="Espacio"><span class="badge bg-secondary">${e.espacio}</span></td>
@@ -535,7 +550,10 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
                     👥 ${totalAsistentes} confirmados
                 </span>
             </td>
-            <td class="actions-cell text-end">${acciones || '<small class="text-muted">Sin acciones</small>'}</td>
+            <td class="actions-cell text-end">
+                ${htmlDescripcion}
+                ${acciones || '<small class="text-muted">Sin acciones</small>'}
+            </td>
         </tr>
     `;
 }
@@ -649,7 +667,8 @@ function abrirModalEditar(id) {
     document.getElementById('edit-hora').value = evento.hora;
     document.getElementById('edit-select-espacios').value = evento.espacio;
     document.getElementById('edit-responsable').value = evento.responsable || '';
-    document.getElementById('edit-descripcion').value = evento.descripcion || '';
+    // CORREGIDO: Lee la descripción considerando ambas propiedades
+    document.getElementById('edit-descripcion').value = evento.descripcion || evento.description || '';
 
     const modal = new bootstrap.Modal(document.getElementById('modalEditarEvento'));
     modal.show();
