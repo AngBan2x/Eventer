@@ -1,0 +1,112 @@
+/* ==========================================
+   SISTEMA FACYT - ESTILOS GENERALES Y MÓVIL
+   ========================================== */
+
+/* 1. Navegación deslizable por pestañas en móviles */
+.nav-tabs-responsive {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.nav-tabs-responsive::-webkit-scrollbar {
+    height: 4px;
+}
+
+.nav-tabs-responsive::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.nav-tabs-responsive .nav-link {
+    flex: 0 0 auto;
+}
+
+/* 2. Reglas responsivas para smartphones (< 768px) */
+@media (max-width: 767.98px) {
+
+    /* Transformar tablas tradicionales en tarjetas móviles */
+    .table-mobile-card thead {
+        display: none !important; /* Ocultar cabeceras en móviles */
+    }
+
+    .table-mobile-card, 
+    .table-mobile-card tbody, 
+    .table-mobile-card tr, 
+    .table-mobile-card td {
+        display: block;
+        width: 100%;
+    }
+
+    .table-mobile-card tr {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        margin-bottom: 1rem;
+        padding: 0.85rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+
+    .table-mobile-card td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        text-align: left !important;
+        border: none;
+        padding: 0.4rem 0;
+        border-bottom: 1px dashed #f1f5f9;
+    }
+
+    /* Asignar etiqueta contextual desde atributo data-label */
+    .table-mobile-card td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        font-size: 0.825rem;
+        color: #64748b;
+        margin-right: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    /* Ocultar etiquetas contextuales en celdas especiales o vacías */
+    .table-mobile-card td[colspan]::before,
+    .table-mobile-card td.no-label::before {
+        display: none;
+    }
+
+    /* Celda de acciones al final de la tarjeta */
+    .table-mobile-card td.actions-cell {
+        margin-top: 0.5rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        justify-content: flex-end !important;
+    }
+
+    .table-mobile-card td.actions-cell .btn {
+        flex: 1 1 auto;
+        font-size: 0.825rem;
+        padding: 0.4rem 0.6rem;
+    }
+
+    /* Manejo de celdas de estado e información */
+    .table-mobile-card td[colspan] {
+        justify-content: center;
+        text-align: center !important;
+    }
+
+    /* Ajuste de contenedores e inputs */
+    .mobile-w-100 {
+        width: 100% !important;
+    }
+
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+}

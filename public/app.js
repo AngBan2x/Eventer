@@ -1,4 +1,5 @@
 let eventosCache = [];
+let usuariosCache = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     actualizarInterfazSegunRol();
@@ -81,92 +82,89 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Solicitar evento
-document.getElementById('form-evento').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const user = getCurrentUser();
+    document.getElementById('form-evento').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const user = getCurrentUser();
 
-    let responsableInput = document.getElementById('responsable').value.trim();
-    if (!responsableInput) {
-        responsableInput = (user && user.nombre && user.nombre !== 'Invitado') ? user.nombre : 'Sin responsable';
-    }
+        let responsableInput = document.getElementById('responsable').value.trim();
+        if (!responsableInput) {
+            responsableInput = (user && user.nombre && user.nombre !== 'Invitado') ? user.nombre : 'Sin responsable';
+        }
 
-    const data = {
-        nombre: document.getElementById('nombre').value.trim(),
-        fecha: document.getElementById('fecha').value,
-        hora: document.getElementById('hora').value,
-        espacio: document.getElementById('select-espacios').value,
-        responsable: responsableInput,
-        descripcion: document.getElementById('descripcion').value.trim(),
-        usuario_id: user.id,
-        estado: 'pendiente' // Forzamos estado inicial cooperativo
-    };
+        const data = {
+            nombre: document.getElementById('nombre').value.trim(),
+            fecha: document.getElementById('fecha').value,
+            hora: document.getElementById('hora').value,
+            espacio: document.getElementById('select-espacios').value,
+            responsable: responsableInput,
+            descripcion: document.getElementById('descripcion').value.trim(),
+            usuario_id: user.id,
+            estado: 'pendiente'
+        };
 
-    const result = await apiFetch('/api/eventos', {
-        method: 'POST',
-        body: JSON.stringify(data)
+        const result = await apiFetch('/api/eventos', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+
+        if (result && result.success) {
+            alert('Evento solicitado con éxito.');
+            document.getElementById('form-evento').reset();
+            
+            const tabEventos = new bootstrap.Tab(document.getElementById('btn-tab-eventos'));
+            tabEventos.show();
+            
+            await loadEventos();
+            await loadDashboard();
+        } else {
+            alert('Error: ' + (result?.message || result?.mensaje));
+        }
     });
-
-    if (result && result.success) {
-        alert('Evento solicitado con éxito.');
-        document.getElementById('form-evento').reset();
-        
-        const tabEventos = new bootstrap.Tab(document.getElementById('btn-tab-eventos'));
-        tabEventos.show();
-        
-        await loadEventos();
-        await loadDashboard();
-    } else {
-        alert('Error: ' + (result?.message || result?.mensaje));
-    }
-});
 
     // Editar evento
-document.getElementById('form-editar-evento').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('edit-id').value;
+    document.getElementById('form-editar-evento').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
 
-    const data = {
-        nombre: document.getElementById('edit-nombre').value.trim(),
-        fecha: document.getElementById('edit-fecha').value,
-        hora: document.getElementById('edit-hora').value,
-        espacio: document.getElementById('edit-select-espacios').value,
-        responsable: document.getElementById('edit-responsable').value.trim(),
-        descripcion: document.getElementById('edit-descripcion').value.trim(),
-        estado: 'pendiente',
-        nota_rechazo: '',
-        motivo: ''
-    };
+        const data = {
+            nombre: document.getElementById('edit-nombre').value.trim(),
+            fecha: document.getElementById('edit-fecha').value,
+            hora: document.getElementById('edit-hora').value,
+            espacio: document.getElementById('edit-select-espacios').value,
+            responsable: document.getElementById('edit-responsable').value.trim(),
+            descripcion: document.getElementById('edit-descripcion').value.trim(),
+            estado: 'pendiente',
+            nota_rechazo: '',
+            motivo: ''
+        };
 
-    // A. Actualizar datos en el servidor
-    const resData = await apiFetch(`/api/eventos/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data)
+        const resData = await apiFetch(`/api/eventos/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+
+        const resEstado = await apiFetch(`/api/eventos/${id}/estado`, {
+            method: 'PUT',
+            body: JSON.stringify({ 
+                estado: 'pendiente', 
+                nota_rechazo: '', 
+                motivo: '' 
+            })
+        });
+
+        if ((resData && resData.success) || (resEstado && resEstado.success)) {
+            alert('✅ Evento actualizado y reenviado a revisión.');
+            
+            const modalEl = document.getElementById('modalEditarEvento');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            await loadEventos();
+            await loadDashboard();
+        } else {
+            alert('Error en el servidor: ' + (resData?.mensaje || resData?.message || 'No se pudo actualizar'));
+        }
     });
-
-    // B. Forzar reseteo de estado a 'pendiente' en la ruta de estado
-    const resEstado = await apiFetch(`/api/eventos/${id}/estado`, {
-        method: 'PUT',
-        body: JSON.stringify({ 
-            estado: 'pendiente', 
-            nota_rechazo: '', 
-            motivo: '' 
-        })
-    });
-
-    if ((resData && resData.success) || (resEstado && resEstado.success)) {
-        alert('✅ Evento actualizado y reenviado a revisión.');
-        
-        const modalEl = document.getElementById('modalEditarEvento');
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-
-        // C. Consultar datos REALES recién guardados en la Base de Datos
-        await loadEventos();
-        await loadDashboard();
-    } else {
-        alert('Error en el servidor: ' + (resData?.mensaje || resData?.message || 'No se pudo actualizar'));
-    }
-});
 
     // Rechazar evento
     document.getElementById('form-rechazar-evento').addEventListener('submit', async (e) => {
@@ -192,7 +190,6 @@ document.getElementById('form-editar-evento').addEventListener('submit', async (
     });
 });
 
-// Obtener usuario guardado en sesión
 function getCurrentUser() {
     const userStr = localStorage.getItem('usuario_facyt');
     if (userStr) {
@@ -205,7 +202,6 @@ function getCurrentUser() {
     return { id: 0, nombre: 'Invitado', rol: 'invitado' };
 }
 
-// Guardar nueva sesión y refrescar la app
 function setSesionUsuario(usuario) {
     if (usuario) {
         localStorage.setItem('usuario_facyt', JSON.stringify(usuario));
@@ -259,17 +255,17 @@ function actualizarInterfazSegunRol() {
     const authNav = document.getElementById('auth-nav-container');
     if (user.rol === 'invitado' || user.id === 0) {
         authNav.innerHTML = `
-            <button class="btn btn-light btn-sm fw-bold text-primary" onclick="abrirModalAuth('login')">
-                🔑 Iniciar Sesión / Registrarse
+            <button class="btn btn-light btn-sm fw-bold text-primary px-3" onclick="abrirModalAuth('login')">
+                🔑 Acceder
             </button>
         `;
     } else {
         authNav.innerHTML = `
-            <span class="text-white small me-3">
+            <span class="text-white small me-2 d-none d-sm-inline">
                 👤 <strong>${user.nombre}</strong> 
                 <span class="badge bg-light text-dark ms-1">${user.rol}</span>
             </span>
-            <button class="btn btn-outline-light btn-sm" onclick="cerrarSesion()">Cerrar Sesión</button>
+            <button class="btn btn-outline-light btn-sm" onclick="cerrarSesion()">Salir</button>
         `;
     }
 
@@ -280,7 +276,7 @@ function actualizarInterfazSegunRol() {
     const seccionPendientes = document.getElementById('seccion-pendientes');
 
     if (user.rol === 'estudiante' || user.rol === 'invitado') {
-        navItemNuevo.classList.add('d-none');
+        if (navItemNuevo) navItemNuevo.classList.add('d-none');
         const tabNuevo = document.getElementById('tab-nuevo');
         if (tabNuevo && tabNuevo.classList.contains('active')) {
             const btnEventos = document.getElementById('btn-tab-eventos');
@@ -288,7 +284,7 @@ function actualizarInterfazSegunRol() {
             tab.show();
         }
     } else {
-        navItemNuevo.classList.remove('d-none');
+        if (navItemNuevo) navItemNuevo.classList.remove('d-none');
     }
 
     if (user.rol === 'admin' || user.rol === 'organizador') {
@@ -298,11 +294,11 @@ function actualizarInterfazSegunRol() {
     }
 
     if (user.rol === 'admin') {
-        navItemUsuarios.classList.remove('d-none');
+        if (navItemUsuarios) navItemUsuarios.classList.remove('d-none');
         if (seccionHistorial) seccionHistorial.classList.remove('d-none');
         loadUsuarios();
     } else {
-        navItemUsuarios.classList.add('d-none');
+        if (navItemUsuarios) navItemUsuarios.classList.add('d-none');
         if (seccionHistorial) seccionHistorial.classList.add('d-none');
 
         const tabUsuarios = document.getElementById('tab-usuarios');
@@ -313,7 +309,6 @@ function actualizarInterfazSegunRol() {
         }
     }
 
-    // PUNTO 1 SOLUCIONADO: Mostrar/Ocultar los encabezados <th> de la columna "Estado"
     const verColumnaEstado = user.rol === 'admin' || user.rol === 'organizador';
     document.querySelectorAll('.th-estado').forEach(th => {
         if (verColumnaEstado) {
@@ -343,25 +338,21 @@ async function loadDashboard() {
     const container = document.getElementById('resumen-container');
     if (!container) return;
 
-    // Obtener la información real desde el Backend
     const result = await apiFetch('/api/eventos');
     if (!result || !result.data) return;
 
     const hoy = new Date().toISOString().split('T')[0];
 
-    // FILTRO ESTRICTO: Solo eventos Aprobados
     const aprobados = result.data.filter(e => 
         String(e.estado || '').toLowerCase().trim() === 'aprobado'
     );
 
-    // Próximo evento aprobado más cercano
     const proximos = aprobados
         .filter(e => e.fecha >= hoy)
         .sort((a, b) => a.fecha.localeCompare(b.fecha));
     
     const proximoNombre = proximos.length > 0 ? proximos[0].nombre : 'Ninguno';
 
-    // Espacio más utilizado entre los aprobados
     const conteoEspacios = {};
     aprobados.forEach(e => {
         if (e.espacio) {
@@ -371,24 +362,24 @@ async function loadDashboard() {
     
     const espacioTop = Object.keys(conteoEspacios).sort((a, b) => conteoEspacios[b] - conteoEspacios[a])[0] || 'N/A';
 
-    // Renderizar contadores en la interfaz
+    // Adaptado con col-12 col-md-4 para apilarse limpiamente en pantallas pequeñas
     container.innerHTML = `
-        <div class="col-md-4 mb-3">
-            <div class="card bg-primary text-white p-3 shadow-sm">
-                <h5>Total Eventos Aprobados</h5>
-                <h2 class="mb-0">${aprobados.length}</h2>
+        <div class="col-12 col-md-4 mb-2 mb-md-0">
+            <div class="card bg-primary text-white p-3 shadow-sm border-0">
+                <small class="text-white-50 text-uppercase fw-bold">Total Aprobados</small>
+                <h2 class="mb-0 fw-bold">${aprobados.length}</h2>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="card bg-success text-white p-3 shadow-sm">
-                <h5>Próximo Evento</h5>
-                <p class="mb-0 fw-bold">${proximoNombre}</p>
+        <div class="col-12 col-md-4 mb-2 mb-md-0">
+            <div class="card bg-success text-white p-3 shadow-sm border-0">
+                <small class="text-white-50 text-uppercase fw-bold">Próximo Evento</small>
+                <p class="mb-0 fw-bold text-truncate">${proximoNombre}</p>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="card bg-info text-white p-3 shadow-sm">
-                <h5>Espacio más solicitado</h5>
-                <p class="mb-0 fw-bold">${espacioTop}</p>
+        <div class="col-12 col-md-4">
+            <div class="card bg-info text-white p-3 shadow-sm border-0">
+                <small class="text-white-50 text-uppercase fw-bold">Espacio Principal</small>
+                <p class="mb-0 fw-bold text-truncate">${espacioTop}</p>
             </div>
         </div>
     `;
@@ -408,23 +399,18 @@ async function loadEventos() {
 
     const getEstado = (e) => (e.estado ? String(e.estado).toLowerCase().trim() : 'pendiente');
 
-    // 1. Próximos Eventos (Aprobados y >= hoy)
     const proximos = data.filter(e => getEstado(e) === 'aprobado' && e.fecha >= hoy);
 
-    // 2. Eventos Recientes Realizados (Aprobados y < hoy)
     const recientesRealizados = data
         .filter(e => getEstado(e) === 'aprobado' && e.fecha < hoy)
         .reverse()
         .slice(0, 2);
 
-    // 3. Solicitudes Pendientes
     let pendientes = [];
 
     if (user.rol === 'admin') {
-        // Admin: Ve todo evento en estado 'pendiente'
         pendientes = data.filter(e => getEstado(e) === 'pendiente');
     } else if (user.rol === 'organizador') {
-        // Organizador: Ve sus pendientes y sus rechazados
         pendientes = data.filter(e => {
             const est = getEstado(e);
             const esRevisable = est === 'pendiente' || est === 'rechazado';
@@ -440,10 +426,8 @@ async function loadEventos() {
         });
     }
 
-    // 4. Historial (Exclusivo Administrador - ÚNICAMENTE APROBADOS)
     const historialAprobados = data.filter(e => getEstado(e) === 'aprobado');
 
-    // Renderizar Tablas
     const tbodyProximos = document.getElementById('lista-proximos-eventos');
     if (tbodyProximos) {
         tbodyProximos.innerHTML = proximos.length > 0 
@@ -478,7 +462,6 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
     const esPasado = e.fecha < hoy;
     const estadoNorm = (e.estado || 'pendiente').toString().toLowerCase();
 
-    // Detección de propietario
     const idCreador = Number(e.usuario_id || e.usuarioId || e.userId || 0);
     const esOwner = (idCreador > 0 && idCreador === Number(user.id)) || 
                     (e.responsable && user.nombre && e.responsable.toLowerCase().trim() === user.nombre.toLowerCase().trim()) ||
@@ -487,7 +470,6 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
     const esAdmin = user.rol === 'admin';
     const verColumnaEstado = esAdmin || user.rol === 'organizador';
 
-    // Celda de Estado
     let celdaEstadoHTML = '';
     if (verColumnaEstado) {
         let badgeClass = 'bg-warning text-dark';
@@ -503,39 +485,35 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
             </div>`;
         }
 
-        celdaEstadoHTML = `<td><span class="badge ${badgeClass}">${e.estado || 'pendiente'}</span>${htmlNota}</td>`;
+        celdaEstadoHTML = `<td data-label="Estado"><span class="badge ${badgeClass}">${e.estado || 'pendiente'}</span>${htmlNota}</td>`;
     }
 
-    // Botones de Acción
     let acciones = '';
 
-    // Permite al dueño editar tanto si está pendiente como si fue RECHAZADO (para corregir y reenviar)
     if (esOwner && !esPasado) {
-        const textoBtn = estadoNorm === 'rechazado' ? '✏️ Corregir y Reenviar' : 'Editar';
+        const textoBtn = estadoNorm === 'rechazado' ? '✏️ Corregir' : 'Editar';
         const claseBtn = estadoNorm === 'rechazado' ? 'btn-outline-warning text-dark' : 'btn-outline-primary';
-        acciones += `<button class="btn btn-sm ${claseBtn} me-1" onclick="abrirModalEditar(${e.id})">${textoBtn}</button>`;
+        acciones += `<button class="btn btn-sm ${claseBtn}" onclick="abrirModalEditar(${e.id})">${textoBtn}</button>`;
     }
 
-    // Acciones de Administrador
     if (esAdmin) {
         if (!esPasado) {
             if (estadoNorm !== 'aprobado') {
-                acciones += `<button class="btn btn-sm btn-success me-1" onclick="cambiarEstado(${e.id}, 'aprobado')">Aprobar</button>`;
+                acciones += `<button class="btn btn-sm btn-success" onclick="cambiarEstado(${e.id}, 'aprobado')">Aprobar</button>`;
             }
             if (estadoNorm !== 'rechazado') {
-                acciones += `<button class="btn btn-sm btn-warning me-1" onclick="abrirModalRechazar(${e.id})">Rechazar</button>`;
+                acciones += `<button class="btn btn-sm btn-warning" onclick="abrirModalRechazar(${e.id})">Rechazar</button>`;
             }
         }
-        acciones += `<button class="btn btn-sm btn-danger me-1" onclick="eliminarEvento(${e.id})">Eliminar</button>`;
+        acciones += `<button class="btn btn-sm btn-danger" onclick="eliminarEvento(${e.id})">Eliminar</button>`;
     } 
     
-    // Botón de Asistir
     if (estadoNorm === 'aprobado' && !esPasado) {
-        acciones += `<button class="btn btn-sm btn-outline-success ms-1" onclick="marcarAsistencia(${e.id})">Asistir</button>`;
+        acciones += `<button class="btn btn-sm btn-outline-success" onclick="marcarAsistencia(${e.id})">Asistir</button>`;
     }
 
     const totalAsistentes = typeof e.asistencias === 'number' ? e.asistencias : (e.asistencias?.length || 0);
-    const celdaId = esHistorialAdmin ? `<td><small class="text-muted fw-bold">#${e.id}</small></td>` : '';
+    const celdaId = esHistorialAdmin ? `<td data-label="ID"><small class="text-muted fw-bold">#${e.id}</small></td>` : '';
 
     const htmlDescripcion = e.descripcion 
         ? `<div class="text-muted small fst-italic mt-1">${e.descripcion}</div>` 
@@ -544,20 +522,20 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
     return `
         <tr>
             ${celdaId}
-            <td>
+            <td data-label="Evento">
                 <strong>${e.nombre}</strong><br>
                 <small class="text-muted">Resp: ${e.responsable || 'Sin responsable'}</small>
                 ${htmlDescripcion}
             </td>
-            <td>${e.fecha}<br><small class="text-muted">${e.hora}</small></td>
-            <td><span class="badge bg-secondary">${e.espacio}</span></td>
+            <td data-label="Fecha/Hora">${e.fecha}<br><small class="text-muted">${e.hora}</small></td>
+            <td data-label="Espacio"><span class="badge bg-secondary">${e.espacio}</span></td>
             ${celdaEstadoHTML}
-            <td>
+            <td data-label="Asistentes">
                 <span class="badge bg-light text-dark border">
                     👥 ${totalAsistentes} confirmados
                 </span>
             </td>
-            <td class="text-end">${acciones || '<small class="text-muted">Sin acciones</small>'}</td>
+            <td class="actions-cell text-end">${acciones || '<small class="text-muted">Sin acciones</small>'}</td>
         </tr>
     `;
 }
@@ -578,7 +556,7 @@ async function loadEspacios() {
     const container = document.getElementById('lista-espacios');
     if (container) {
         container.innerHTML = data.map(es => `
-            <div class="col-md-4 mb-3">
+            <div class="col-12 col-md-4 mb-2">
                 <div class="border p-3 rounded bg-white shadow-sm">
                     <h6 class="fw-bold mb-1">${es.nombre}</h6>
                     <small class="text-muted d-block">Tipo: ${es.tipo || 'N/A'}</small>
@@ -595,7 +573,6 @@ async function loadUsuarios() {
 
     usuariosCache = result.data || [];
     
-    // Obtener término del buscador si ya existe un texto escrito
     const textoBusqueda = document.getElementById('buscar-usuario')?.value || '';
     filtrarYRenderizarUsuarios(textoBusqueda);
 }
@@ -607,7 +584,6 @@ function filtrarYRenderizarUsuarios(filtro = '') {
     const currentUser = getCurrentUser();
     const termino = filtro.toLowerCase().trim();
 
-    // Filtrar usuarios por Nombre o Email
     const usuariosFiltrados = usuariosCache.filter(u => 
         (u.nombre && u.nombre.toLowerCase().includes(termino)) ||
         (u.email && u.email.toLowerCase().includes(termino))
@@ -625,11 +601,11 @@ function filtrarYRenderizarUsuarios(filtro = '') {
 
         return `
             <tr>
-                <td>${u.id}</td>
-                <td><strong>${u.nombre}</strong> ${etiquetaMismoUsuario}</td>
-                <td>${u.email}</td>
-                <td><span class="badge bg-info text-dark">${u.rol}</span></td>
-                <td>
+                <td data-label="ID">${u.id}</td>
+                <td data-label="Nombre"><strong>${u.nombre}</strong> ${etiquetaMismoUsuario}</td>
+                <td data-label="Email">${u.email}</td>
+                <td data-label="Rol Actual"><span class="badge bg-info text-dark">${u.rol}</span></td>
+                <td data-label="Nuevo Rol">
                     <select class="form-select form-select-sm" ${isDisabled} onchange="cambiarRolUsuario(${u.id}, this.value)">
                         <option value="estudiante" ${u.rol === 'estudiante' ? 'selected' : ''}>Estudiante</option>
                         <option value="organizador" ${u.rol === 'organizador' ? 'selected' : ''}>Organizador</option>
