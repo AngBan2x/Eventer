@@ -1,65 +1,66 @@
-const { readDB, writeDB } = require('../utils/dbHandler');
+const pool = require('../utils/db');
 
 /**
- * Función auxiliar para verificar conflictos de horario
- * Solo considera eventos que NO han sido eliminados
+ * Función auxiliar para verificar conflictos de horario usando SQL
  */
-const verificarConflicto = (eventos, nuevoEvento, idIgnorar = null) => {
-    return eventos.find(e => 
-        !e.eliminado &&
-        e.id !== idIgnorar &&
-        e.fecha === nuevoEvento.fecha &&
-        e.hora === nuevoEvento.hora &&
-        e.espacio === nuevoEvento.espacio &&
-        e.estado !== 'cancelado' && e.estado !== 'rechazado'
-    );
+const verificarConflictoSQL = async (evento, idIgnorar = null) => {
+    const query = `
+        SELECT * FROM eventos 
+        WHERE eliminado = false 
+        AND fecha = $1 
+        AND hora = $2 
+        AND espacio = $3 
+        AND estado NOT IN ('cancelado', 'rechazado')
+        ${idIgnorar ? 'AND id != $4' : ''}
+    `;
+    const values = [evento.fecha, evento.hora, evento.espacio];
+    if (idIgnorar) values.push(idIgnorar);
+    
+    const result = await pool.query(query, values);
+    return result.rows[0];
 };
 
 const getEventos = async (req, res) => {
     try {
-        const db = await readDB();
-        const asistencias = db.asistencias || [];
-
         const rol = req.user ? req.user.rol : 'estudiante';
-        const usuarioId = req.user ? String(req.user.id) : null;
+        const usuarioId = req.user ? req.user.id : null;
 
-        const activos = (db.eventos || [])
-            .filter(e => {
-                if (e.eliminado) return false;
-                if (rol === 'admin') return true;
-                if (rol === 'organizador') {
-                    // Normalización de ID para evitar fallos de comparación String vs Number
-                    const esOwner = usuarioId && String(e.usuario_id) === usuarioId;
-                    return e.estado === 'aprobado' || esOwner;
-                }
-                return e.estado === 'aprobado';
-            })
-            .map(evento => {
-                const asistenciasDelEvento = asistencias.filter(a => String(a.evento_id) === String(evento.id));
-                return {
-                    ...evento,
-                    asistencias: asistenciasDelEvento.length,
-                    asistentes: asistenciasDelEvento
-                };
-            });
+        let query = `
+            SELECT e.*, 
+            (SELECT COUNT(*) FROM asistencias a WHERE a.evento_id = e.id) as asistencias
+            FROM eventos e
+            WHERE e.eliminado = false
+        `;
+        const values = [];
 
-        res.status(200).json({ success: true, data: activos });
+        if (rol === 'admin') {
+            // Admin ve todos los no eliminados
+        } else if (rol === 'organizador') {
+            query += ` AND (e.estado = 'aprobado' OR e.usuario_id = $1)`;
+            values.push(usuarioId);
+        } else {
+            query += ` AND e.estado = 'aprobado'`;
+        }
+
+        query += ` ORDER BY e.fecha ASC, e.hora ASC`;
+
+        const result = await pool.query(query, values);
+        res.status(200).json({ success: true, data: result.rows });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: "Error al obtener eventos" });
     }
 };
 
 const createEvento = async (req, res) => {
     try {
-        const { nombre, fecha, hora, espacio, responsable, tipo, estado } = req.body;
+        const { nombre, fecha, hora, espacio, responsable, tipo, estado, descripcion } = req.body;
 
         if (!nombre || !fecha || !hora || !espacio) {
             return res.status(400).json({ success: false, message: "Faltan datos críticos (nombre, fecha, hora, espacio)" });
         }
 
-        const db = await readDB();
-
-        const conflicto = verificarConflicto(db.eventos, { fecha, hora, espacio });
+        const conflicto = await verificarConflictoSQL({ fecha, hora, espacio });
         if (conflicto) {
             return res.status(409).json({ 
                 success: false, 
@@ -67,24 +68,24 @@ const createEvento = async (req, res) => {
             });
         }
 
-        const nuevoEvento = {
-            id: Date.now(),
-            usuario_id: req.user ? req.user.id : null,
+        const query = `
+            INSERT INTO eventos (usuario_id, nombre, fecha, hora, espacio, responsable, tipo, estado, descripcion, eliminado, "createdAt")
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, NOW())
+            RETURNING *
+        `;
+        const values = [
+            req.user ? req.user.id : null,
             nombre, fecha, hora, espacio,
-            responsable: responsable || (req.user ? req.user.nombre : "Sin responsable"),
-            tipo: tipo || "Académico",
-            estado: estado || "pendiente", // Normalizado a 'pendiente'
-            nota_rechazo: null,
-            eliminado: false,
-            createdAt: new Date().toISOString()
-        };
+            responsable || (req.user ? req.user.nombre : "Sin responsable"),
+            tipo || "Académico",
+            estado || "pendiente",
+            descripcion || null
+        ];
 
-        if (!db.eventos) db.eventos = [];
-        db.eventos.push(nuevoEvento);
-        await writeDB(db);
-
-        res.status(201).json({ success: true, data: nuevoEvento });
+        const result = await pool.query(query, values);
+        res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -93,52 +94,61 @@ const updateEvento = async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
-        const db = await readDB();
         
-        const index = db.eventos.findIndex(e => String(e.id) === String(id));
-        if (index === -1 || db.eventos[index].eliminado) {
+        const checkQuery = `SELECT * FROM eventos WHERE id = $1 AND eliminado = false`;
+        const checkResult = await pool.query(checkQuery, [id]);
+        
+        if (checkResult.rowCount === 0) {
             return res.status(404).json({ success: false, message: "Evento no encontrado" });
         }
 
-        const eventoActual = db.eventos[index];
+        const eventoActual = checkResult.rows[0];
 
         if (req.user && eventoActual.usuario_id && String(eventoActual.usuario_id) !== String(req.user.id) && req.user.rol !== 'admin') {
             return res.status(403).json({ success: false, message: "No tienes permiso para modificar este evento" });
         }
 
         if (updates.fecha || updates.hora || updates.espacio) {
-            const eventoActualizado = { ...eventoActual, ...updates };
-            const conflicto = verificarConflicto(db.eventos, eventoActualizado, parseInt(id));
+            const conflicto = await verificarConflictoSQL({
+                fecha: updates.fecha || eventoActual.fecha,
+                hora: updates.hora || eventoActual.hora,
+                espacio: updates.espacio || eventoActual.espacio
+            }, id);
             if (conflicto) {
                 return res.status(409).json({ success: false, message: "La actualización genera un conflicto de horario." });
             }
         }
 
-        // Determinar nuevo estado (Si lo edita un organizador y estaba en estado previo final, vuelve a 'pendiente')
-        let nuevoEstado = updates.estado || 'pendiente';
-        let nuevaNotaRechazo = eventoActual.nota_rechazo;
-
+        let nuevoEstado = updates.estado || eventoActual.estado;
         if (req.user && req.user.rol !== 'admin') {
             if (['aprobado', 'rechazado', 'cancelado'].includes(eventoActual.estado)) {
-                nuevoEstado = 'pendiente'; // <-- CORREGIDO: Ahora asigna 'pendiente'
-                nuevaNotaRechazo = null;   // Se limpia la nota de rechazo previa
+                nuevoEstado = 'pendiente';
             }
-        } else if (updates.estado) {
-            nuevoEstado = updates.estado;
-            if (nuevoEstado === 'pendiente') nuevaNotaRechazo = null;
         }
 
-        db.eventos[index] = { 
-            ...eventoActual, 
-            ...updates, 
-            estado: nuevoEstado,
-            nota_rechazo: nuevaNotaRechazo,
-            updatedAt: new Date().toISOString() 
-        };
+        const query = `
+            UPDATE eventos 
+            SET nombre = COALESCE($1, nombre),
+                fecha = COALESCE($2, fecha),
+                hora = COALESCE($3, hora),
+                espacio = COALESCE($4, espacio),
+                responsable = COALESCE($5, responsable),
+                tipo = COALESCE($6, tipo),
+                estado = $7,
+                descripcion = COALESCE($8, descripcion),
+                "updatedAt" = NOW()
+            WHERE id = $9
+            RETURNING *
+        `;
+        const values = [
+            updates.nombre, updates.fecha, updates.hora, updates.espacio,
+            updates.responsable, updates.tipo, nuevoEstado, updates.descripcion, id
+        ];
 
-        await writeDB(db);
-        res.status(200).json({ success: true, data: db.eventos[index] });
+        const result = await pool.query(query, values);
+        res.status(200).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -152,54 +162,79 @@ const updateEstado = async (req, res) => {
             return res.status(400).json({ success: false, message: "Estado no válido" });
         }
 
-        const db = await readDB();
-        const index = db.eventos.findIndex(e => String(e.id) === String(id));
+        const query = `
+            UPDATE eventos 
+            SET estado = $1, 
+                nota_rechazo = $2,
+                "updatedAt" = NOW()
+            WHERE id = $3 AND eliminado = false
+            RETURNING *
+        `;
+        const result = await pool.query(query, [estado, estado === 'rechazado' ? motivo : null, id]);
 
-        if (index === -1 || db.eventos[index].eliminado) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: "Evento no encontrado" });
         }
 
-        db.eventos[index].estado = estado;
-
-        if (estado === 'rechazado') {
-            db.eventos[index].nota_rechazo = motivo || null;
-        } else if (estado === 'aprobado' || estado === 'pendiente') {
-            db.eventos[index].nota_rechazo = null;
-        }
-
-        db.eventos[index].updatedAt = new Date().toISOString();
-
-        await writeDB(db);
-        res.status(200).json({ success: true, message: `Evento cambiado a ${estado} con éxito`, data: db.eventos[index] });
+        res.status(200).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
 const getResumen = async (req, res) => {
     try {
-        const db = await readDB();
-        const eventos = (db.eventos || []).filter(e => !e.eliminado);
+        const statsQuery = `
+            SELECT 
+                COUNT(*) as total,
+                json_object_agg(estado, count) as por_estado,
+                json_object_agg(tipo, count_tipo) as por_tipo,
+                json_object_agg(espacio, count_espacio) as espacios_mas_usados
+            FROM (
+                SELECT 
+                    estado, COUNT(*) as count,
+                    tipo, COUNT(*) OVER(PARTITION BY tipo) as count_tipo,
+                    espacio, COUNT(*) OVER(PARTITION BY espacio) as count_espacio
+                FROM eventos 
+                WHERE eliminado = false
+                GROUP BY estado, tipo, espacio
+            ) s
+        `;
+        
+        // Versión simplificada para evitar errores de agregación complejos en una sola query
+        const totalResult = await pool.query('SELECT COUNT(*) FROM eventos WHERE eliminado = false');
+        const estadosResult = await pool.query('SELECT estado, COUNT(*) FROM eventos WHERE eliminado = false GROUP BY estado');
+        const tiposResult = await pool.query('SELECT tipo, COUNT(*) FROM eventos WHERE eliminado = false GROUP BY tipo');
+        const espaciosResult = await pool.query('SELECT espacio, COUNT(*) FROM eventos WHERE eliminado = false GROUP BY espacio');
+        const proximosResult = await pool.query(`
+            SELECT * FROM eventos 
+            WHERE eliminado = false AND fecha >= CURRENT_DATE 
+            ORDER BY fecha ASC, hora ASC 
+            LIMIT 5
+        `);
 
-        const resumen = {
-            total: eventos.length,
-            porEstado: {},
-            porTipo: {},
-            espaciosMasUsados: {},
-            proximos: eventos
-                .filter(e => e.fecha >= new Date().toISOString().split('T')[0])
-                .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-                .slice(0, 5)
-        };
+        const porEstado = {};
+        estadosResult.rows.forEach(r => porEstado[r.estado] = parseInt(r.count));
+        
+        const porTipo = {};
+        tiposResult.rows.forEach(r => porTipo[r.tipo] = parseInt(r.count));
 
-        eventos.forEach(e => {
-            resumen.porEstado[e.estado] = (resumen.porEstado[e.estado] || 0) + 1;
-            resumen.porTipo[e.tipo] = (resumen.porTipo[e.tipo] || 0) + 1;
-            resumen.espaciosMasUsados[e.espacio] = (resumen.espaciosMasUsados[e.espacio] || 0) + 1;
+        const espaciosMasUsados = {};
+        espaciosResult.rows.forEach(r => espaciosMasUsados[r.espacio] = parseInt(r.count));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                total: parseInt(totalResult.rows[0].count),
+                porEstado,
+                porTipo,
+                espaciosMasUsados,
+                proximos: proximosResult.rows
+            }
         });
-
-        res.status(200).json({ success: true, data: resumen });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -207,18 +242,21 @@ const getResumen = async (req, res) => {
 const deleteEvento = async (req, res) => {
     try {
         const { id } = req.params;
-        const db = await readDB();
-        const index = db.eventos.findIndex(e => String(e.id) === String(id));
+        const query = `
+            UPDATE eventos 
+            SET eliminado = true, estado = 'cancelado', "deletedAt" = NOW()
+            WHERE id = $1
+            RETURNING *
+        `;
+        const result = await pool.query(query, [id]);
 
-        if (index === -1) return res.status(404).json({ success: false, message: "Evento no encontrado" });
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "Evento no encontrado" });
+        }
 
-        db.eventos[index].eliminado = true;
-        db.eventos[index].estado = 'cancelado';
-        db.eventos[index].deletedAt = new Date().toISOString();
-
-        await writeDB(db);
         res.status(200).json({ success: true, message: "Evento eliminado lógicamente" });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -228,39 +266,21 @@ const marcarAsistencia = async (req, res) => {
         const { id } = req.params;
         const usuario_id = req.user ? req.user.id : null;
 
-        if (!usuario_id) {
-            return res.status(401).json({ success: false, message: "Usuario no autenticado" });
-        }
+        if (!usuario_id) return res.status(401).json({ success: false, message: "Usuario no autenticado" });
 
-        const db = await readDB();
-        if (!db.asistencias) db.asistencias = [];
+        const checkEvento = await pool.query('SELECT * FROM eventos WHERE id = $1 AND eliminado = false', [id]);
+        if (checkEvento.rowCount === 0) return res.status(404).json({ success: false, message: "Evento no encontrado" });
+        if (checkEvento.rows[0].estado !== 'aprobado') return res.status(400).json({ success: false, message: "Solo puedes marcar asistencia en eventos aprobados" });
 
-        const evento = (db.eventos || []).find(e => String(e.id) === String(id) && !e.eliminado);
-        if (!evento) {
-            return res.status(404).json({ success: false, message: "Evento no encontrado" });
-        }
+        const checkAsistencia = await pool.query('SELECT * FROM asistencias WHERE evento_id = $1 AND usuario_id = $2', [id, usuario_id]);
+        if (checkAsistencia.rowCount > 0) return res.status(400).json({ success: false, message: "Ya has registrado tu asistencia" });
 
-        if (evento.estado !== 'aprobado') {
-            return res.status(400).json({ success: false, message: "Solo puedes marcar asistencia en eventos aprobados" });
-        }
+        const query = `INSERT INTO asistencias (evento_id, usuario_id, fecha_registro) VALUES ($1, $2, NOW()) RETURNING *`;
+        const result = await pool.query(query, [id, usuario_id]);
 
-        const yaRegistro = db.asistencias.some(a => String(a.evento_id) === String(id) && String(a.usuario_id) === String(usuario_id));
-        if (yaRegistro) {
-            return res.status(400).json({ success: false, message: "Ya has registrado tu asistencia para este evento" });
-        }
-
-        const nuevaAsistencia = {
-            id: Date.now(),
-            evento_id: Number(id),
-            usuario_id: Number(usuario_id),
-            fecha_registro: new Date().toISOString()
-        };
-
-        db.asistencias.push(nuevaAsistencia);
-        await writeDB(db);
-
-        res.status(201).json({ success: true, message: "Asistencia registrada con éxito", data: nuevaAsistencia });
+        res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -268,10 +288,10 @@ const marcarAsistencia = async (req, res) => {
 const obtenerAsistencias = async (req, res) => {
     try {
         const { id } = req.params;
-        const db = await readDB();
-        const asistencias = (db.asistencias || []).filter(a => String(a.evento_id) === String(id));
-        res.status(200).json({ success: true, data: asistencias });
+        const result = await pool.query('SELECT * FROM asistencias WHERE evento_id = $1', [id]);
+        res.status(200).json({ success: true, data: result.rows });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

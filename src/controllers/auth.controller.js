@@ -1,21 +1,22 @@
-const { readDB, writeDB } = require('../utils/dbHandler');
+const pool = require('../utils/db');
 
 // Login de usuarios
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const db = await readDB();
-        const usuarios = db.usuarios || [];
+        
+        const query = 'SELECT * FROM usuarios WHERE email = $1 AND password = $2';
+        const result = await pool.query(query, [email, password]);
 
-        const usuario = usuarios.find(u => u.email === email && u.password === password);
-
-        if (!usuario) {
+        if (result.rowCount === 0) {
             return res.status(401).json({ success: false, mensaje: "Credenciales inválidas" });
         }
 
+        const usuario = result.rows[0];
         const { password: _, ...usuarioSinPassword } = usuario;
         res.json({ success: true, data: usuarioSinPassword });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, mensaje: "Error en el servidor" });
     }
 };
@@ -29,30 +30,24 @@ const register = async (req, res) => {
             return res.status(400).json({ success: false, mensaje: "Todos los campos son obligatorios" });
         }
 
-        const db = await readDB();
-        if (!db.usuarios) db.usuarios = [];
-
         // Verificar si el correo ya existe
-        const yaExiste = db.usuarios.some(u => u.email === email);
-        if (yaExiste) {
+        const checkQuery = 'SELECT id FROM usuarios WHERE email = $1';
+        const checkResult = await pool.query(checkQuery, [email]);
+        
+        if (checkResult.rowCount > 0) {
             return res.status(400).json({ success: false, mensaje: "El correo ya está registrado" });
         }
 
-        const nuevoUsuario = {
-            id: Date.now(),
-            nombre,
-            email,
-            password,
-            rol: 'estudiante', // Rol por defecto asignado automáticamente
-            createdAt: new Date().toISOString()
-        };
+        const insertQuery = `
+            INSERT INTO usuarios (nombre, email, password, rol, "createdAt")
+            VALUES ($1, $2, $3, 'estudiante', NOW())
+            RETURNING id, nombre, email, rol, "createdAt"
+        `;
+        const result = await pool.query(insertQuery, [nombre, email, password]);
 
-        db.usuarios.push(nuevoUsuario);
-        await writeDB(db);
-
-        const { password: _, ...usuarioSinPassword } = nuevoUsuario;
-        res.status(201).json({ success: true, data: usuarioSinPassword });
+        res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, mensaje: "Error al registrar usuario" });
     }
 };
@@ -60,10 +55,11 @@ const register = async (req, res) => {
 // Listar todos los usuarios (Exclusivo Admin)
 const getUsuarios = async (req, res) => {
     try {
-        const db = await readDB();
-        const usuarios = (db.usuarios || []).map(({ password, ...u }) => u);
-        res.status(200).json({ success: true, data: usuarios });
+        const query = 'SELECT id, nombre, email, rol, "createdAt", "updatedAt" FROM usuarios ORDER BY id DESC';
+        const result = await pool.query(query);
+        res.status(200).json({ success: true, data: result.rows });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, mensaje: "Error al obtener usuarios" });
     }
 };
@@ -79,19 +75,21 @@ const cambiarRol = async (req, res) => {
             return res.status(400).json({ success: false, mensaje: "Rol no válido" });
         }
 
-        const db = await readDB();
-        const usuario = (db.usuarios || []).find(u => u.id == id);
+        const query = `
+            UPDATE usuarios 
+            SET rol = $1, "updatedAt" = NOW() 
+            WHERE id = $2 
+            RETURNING id, nombre, email, rol, "updatedAt"
+        `;
+        const result = await pool.query(query, [rol, id]);
 
-        if (!usuario) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ success: false, mensaje: "Usuario no encontrado" });
         }
 
-        usuario.rol = rol;
-        usuario.updatedAt = new Date().toISOString();
-
-        await writeDB(db);
-        res.status(200).json({ success: true, mensaje: `Rol actualizado a ${rol}`, data: usuario });
+        res.status(200).json({ success: true, mensaje: `Rol actualizado a ${rol}`, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, mensaje: "Error al cambiar el rol" });
     }
 };

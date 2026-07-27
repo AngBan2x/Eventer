@@ -1,15 +1,14 @@
-const { readDB, writeDB } = require('../utils/dbHandler');
+const pool = require('../utils/db');
 
 /**
  * Obtener todos los espacios activos
  */
 const getEspacios = async (req, res) => {
     try {
-        const db = await readDB();
-        // Solo espacios que NO estén marcados como eliminados
-        const activos = db.espacios.filter(e => !e.eliminado);
-        res.status(200).json({ success: true, data: activos });
+        const result = await pool.query('SELECT * FROM espacios WHERE eliminado = false ORDER BY nombre ASC');
+        res.status(200).json({ success: true, data: result.rows });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: "Error al obtener espacios" });
     }
 };
@@ -24,20 +23,17 @@ const createEspacio = async (req, res) => {
             return res.status(400).json({ success: false, message: "Nombre, tipo y capacidad son obligatorios" });
         }
 
-        const db = await readDB();
-        const nuevoEspacio = { 
-            id: Date.now(), 
-            nombre, 
-            tipo, 
-            capacidad: parseInt(capacidad),
-            eliminado: false,
-            createdAt: new Date().toISOString() 
-        };
+        const query = `
+            INSERT INTO espacios (nombre, tipo, capacidad, eliminado, "createdAt")
+            VALUES ($1, $2, $3, false, NOW())
+            RETURNING *
+        `;
+        const values = [nombre, tipo, parseInt(capacidad)];
+        const result = await pool.query(query, values);
 
-        db.espacios.push(nuevoEspacio);
-        await writeDB(db);
-        res.status(201).json({ success: true, data: nuevoEspacio });
+        res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: "Error al crear espacio" });
     }
 };
@@ -48,23 +44,27 @@ const createEspacio = async (req, res) => {
 const updateEspacio = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
-        const db = await readDB();
+        const { nombre, tipo, capacidad } = req.body;
 
-        const index = db.espacios.findIndex(e => e.id == id);
-        if (index === -1 || db.espacios[index].eliminado) {
+        const query = `
+            UPDATE espacios 
+            SET nombre = COALESCE($1, nombre), 
+                tipo = COALESCE($2, tipo), 
+                capacidad = COALESCE($3, capacidad),
+                "updatedAt" = NOW()
+            WHERE id = $4 AND eliminado = false
+            RETURNING *
+        `;
+        const values = [nombre, tipo, capacidad ? parseInt(capacidad) : null, id];
+        const result = await pool.query(query, values);
+
+        if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: "Espacio no encontrado" });
         }
 
-        db.espacios[index] = { 
-            ...db.espacios[index], 
-            ...updates, 
-            updatedAt: new Date().toISOString() 
-        };
-
-        await writeDB(db);
-        res.status(200).json({ success: true, data: db.espacios[index] });
+        res.status(200).json({ success: true, data: result.rows[0] });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: "Error al actualizar espacio" });
     }
 };
@@ -75,17 +75,21 @@ const updateEspacio = async (req, res) => {
 const deleteEspacio = async (req, res) => {
     try {
         const { id } = req.params;
-        const db = await readDB();
-        const index = db.espacios.findIndex(e => e.id == id);
+        const query = `
+            UPDATE espacios 
+            SET eliminado = true, "deletedAt" = NOW()
+            WHERE id = $1
+            RETURNING *
+        `;
+        const result = await pool.query(query, [id]);
 
-        if (index === -1) return res.status(404).json({ success: false, message: "Espacio no encontrado" });
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "Espacio no encontrado" });
+        }
 
-        db.espacios[index].eliminado = true;
-        db.espacios[index].deletedAt = new Date().toISOString();
-
-        await writeDB(db);
         res.status(200).json({ success: true, message: "Espacio eliminado lógicamente" });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: "Error al eliminar espacio" });
     }
 };
