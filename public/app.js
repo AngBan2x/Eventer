@@ -463,6 +463,20 @@ async function loadEventos() {
 
 function generarFilaEvento(e, user, esHistorialAdmin = false) {
     const hoy = new Date().toISOString().split('T')[0];
+
+    // Limpiar fecha (De 2026-07-31T00:00:00.000Z a 31/07/2026) ---
+    let fechaVisual = e.fecha;
+    if (e.fecha && e.fecha.includes('T')) {
+        const partes = e.fecha.split('T')[0].split('-');
+        fechaVisual = `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    // NUEVO: Limpiar hora (De 13:02:00 a 13:02) ---
+    let horaVisual = e.hora;
+    if (e.hora && e.hora.length >= 5) {
+        horaVisual = e.hora.substring(0, 5); 
+    }
+
     const esPasado = e.fecha < hoy;
     const estadoNorm = (e.estado || 'pendiente').toString().toLowerCase();
 
@@ -494,7 +508,7 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
 
     let acciones = '';
 
-    if (esOwner && !esPasado) {
+    if (esOwner && !esPasado && user.rol !== 'estudiante') {
         const textoBtn = estadoNorm === 'rechazado' ? '✏️ Corregir' : 'Editar';
         const claseBtn = estadoNorm === 'rechazado' ? 'btn-outline-warning text-dark' : 'btn-outline-primary';
         acciones += `<button class="btn btn-sm ${claseBtn} me-1 mb-1" onclick="abrirModalEditar(${e.id})">${textoBtn}</button>`;
@@ -542,7 +556,7 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
                 <strong>${e.nombre}</strong><br>
                 <small class="text-muted">Resp: ${e.responsable || 'Sin responsable'}</small>
             </td>
-            <td data-label="Fecha/Hora">${e.fecha}<br><small class="text-muted">${e.hora}</small></td>
+            <td data-label="Fecha/Hora">${fechaVisual}<br><small class="text-muted">${horaVisual} h</small></td>
             <td data-label="Espacio"><span class="badge bg-secondary">${e.espacio}</span></td>
             ${celdaEstadoHTML}
             <td data-label="Asistentes">
