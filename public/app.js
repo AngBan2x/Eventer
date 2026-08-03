@@ -7,6 +7,32 @@ document.addEventListener('DOMContentLoaded', () => {
     loadEventos();
     loadEspacios();
 
+    // Evento Formulario Nuevo Espacio
+    const formEspacio = document.getElementById('form-nuevo-espacio');
+    if (formEspacio) {
+        formEspacio.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                nombre: document.getElementById('esp-nombre').value.trim(),
+                tipo: document.getElementById('esp-tipo').value,
+                capacidad: document.getElementById('esp-capacidad').value
+            };
+
+            const result = await apiFetch('/api/espacios', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+
+            if (result && result.success) {
+                alert('Espacio registrado con éxito');
+                formEspacio.reset();
+                loadEspacios();
+            } else {
+                alert('Error: ' + (result?.mensaje || result?.message));
+            }
+        });
+    }
+
     const inputBuscar = document.getElementById('buscar-usuario');
     if (inputBuscar) {
         inputBuscar.addEventListener('input', (e) => {
@@ -277,6 +303,7 @@ function actualizarInterfazSegunRol() {
     // 2. Control de Pestañas y Secciones
     const navItemNuevo = document.getElementById('nav-item-nuevo');
     const navItemUsuarios = document.getElementById('nav-item-usuarios');
+    const navItemGestionEspacios = document.getElementById('nav-item-gestion-espacios');
     const seccionHistorial = document.getElementById('seccion-historial-admin');
     const seccionPendientes = document.getElementById('seccion-pendientes');
 
@@ -300,10 +327,12 @@ function actualizarInterfazSegunRol() {
 
     if (user.rol === 'admin') {
         if (navItemUsuarios) navItemUsuarios.classList.remove('d-none');
+        if (navItemGestionEspacios) navItemGestionEspacios.classList.remove('d-none');
         if (seccionHistorial) seccionHistorial.classList.remove('d-none');
         loadUsuarios();
     } else {
         if (navItemUsuarios) navItemUsuarios.classList.add('d-none');
+        if (navItemGestionEspacios) navItemGestionEspacios.classList.add('d-none');
         if (seccionHistorial) seccionHistorial.classList.add('d-none');
 
         const tabUsuarios = document.getElementById('tab-usuarios');
@@ -464,18 +493,21 @@ async function loadEventos() {
 function generarFilaEvento(e, user, esHistorialAdmin = false) {
     const hoy = new Date().toISOString().split('T')[0];
 
-    // Limpiar fecha (De 2026-07-31T00:00:00.000Z a 31/07/2026) ---
-    let fechaVisual = e.fecha;
-    if (e.fecha && e.fecha.includes('T')) {
-        const partes = e.fecha.split('T')[0].split('-');
-        fechaVisual = `${partes[2]}/${partes[1]}/${partes[0]}`;
-    }
+    // Formateo amigable de fecha (DD/MM/YYYY)
+    let fechaVisual = 'Fecha no válida';
+    try {
+        const d = new Date(e.fecha);
+        if (!isNaN(d)) {
+            fechaVisual = d.toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+            });
+        }
+    } catch (err) {}
 
-    // NUEVO: Limpiar hora (De 13:02:00 a 13:02) ---
-    let horaVisual = e.hora;
-    if (e.hora && e.hora.length >= 5) {
-        horaVisual = e.hora.substring(0, 5); 
-    }
+    // Formateo de hora (HH:MM)
+    let horaVisual = e.hora ? e.hora.substring(0, 5) : '--:--';
 
     const esPasado = e.fecha < hoy;
     const estadoNorm = (e.estado || 'pendiente').toString().toLowerCase();
@@ -508,7 +540,10 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
 
     let acciones = '';
 
-    if (esOwner && !esPasado && user.rol !== 'estudiante') {
+    // BUG 1 CORREGIDO: El botón "Editar" no se muestra a estudiantes (solo a dueños no-estudiantes o admin)
+    const puedeEditar = esOwner && !esPasado && user.rol !== 'estudiante';
+
+    if (puedeEditar) {
         const textoBtn = estadoNorm === 'rechazado' ? '✏️ Corregir' : 'Editar';
         const claseBtn = estadoNorm === 'rechazado' ? 'btn-outline-warning text-dark' : 'btn-outline-primary';
         acciones += `<button class="btn btn-sm ${claseBtn} me-1 mb-1" onclick="abrirModalEditar(${e.id})">${textoBtn}</button>`;
@@ -556,7 +591,10 @@ function generarFilaEvento(e, user, esHistorialAdmin = false) {
                 <strong>${e.nombre}</strong><br>
                 <small class="text-muted">Resp: ${e.responsable || 'Sin responsable'}</small>
             </td>
-            <td data-label="Fecha/Hora">${fechaVisual}<br><small class="text-muted">${horaVisual} h</small></td>
+            <td data-label="Fecha/Hora">
+                <span class="text-dark fw-bold">${fechaVisual}</span><br>
+                <small class="text-muted">a las ${horaVisual}</small>
+            </td>
             <td data-label="Espacio"><span class="badge bg-secondary">${e.espacio}</span></td>
             ${celdaEstadoHTML}
             <td data-label="Asistentes">
@@ -597,6 +635,58 @@ async function loadEspacios() {
             </div>
         `).join('');
     }
+
+    // NUEVO: Renderizar tabla de gestión de espacios (Solo Admin)
+    const tablaGestion = document.getElementById('tabla-gestion-espacios');
+    if (tablaGestion) {
+        tablaGestion.innerHTML = data.map(es => `
+            <tr>
+                <td data-label="Nombre"><strong>${es.nombre}</strong></td>
+                <td data-label="Tipo">${es.tipo}</td>
+                <td data-label="Capacidad">${es.capacidad}</td>
+                <td class="actions-cell text-end">
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarEspacio(${es.id})">Eliminar</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+}
+
+async function eliminarEspacio(id) {
+    if (!confirm('¿Seguro que deseas eliminar este espacio? Esto no afectará a los eventos ya creados.')) return;
+    const result = await apiFetch(`/api/espacios/${id}`, { method: 'DELETE' });
+    if (result && result.success) {
+        alert('Espacio eliminado');
+        loadEspacios();
+    }
+}
+
+function descargarReporte() {
+    if (eventosCache.length === 0) return alert('No hay datos para exportar');
+
+    const headers = ['ID', 'Nombre', 'Fecha', 'Hora', 'Espacio', 'Responsable', 'Tipo', 'Estado'];
+    const rows = eventosCache.map(e => [
+        e.id,
+        `"${e.nombre}"`,
+        e.fecha,
+        e.hora,
+        `"${e.espacio}"`,
+        `"${e.responsable || ''}"`,
+        e.tipo,
+        e.estado
+    ]);
+
+    let csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n"
+        + rows.map(r => r.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `reporte_eventos_facyt_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 async function loadUsuarios() {

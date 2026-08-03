@@ -31,7 +31,10 @@
                         <button class="nav-link fw-semibold" id="btn-tab-nuevo" data-bs-toggle="tab" data-bs-target="#tab-nuevo">➕ Solicitar Evento</button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-espacios">🏛️ Espacios</button>
+                        <button class="nav-link fw-semibold" id="btn-tab-espacios" data-bs-toggle="tab" data-bs-target="#tab-espacios">🏛️ Espacios</button>
+                    </li>
+                    <li class="nav-item d-none" id="nav-item-gestion-espacios">
+                        <button class="nav-link fw-semibold" id="btn-tab-gestion-espacios" data-bs-toggle="tab" data-bs-target="#tab-gestion-espacios">⚙️ Gestionar Espacios</button>
                     </li>
                     <li class="nav-item d-none" id="nav-item-usuarios">
                         <button class="nav-link fw-semibold" id="btn-tab-usuarios" data-bs-toggle="tab" data-bs-target="#tab-usuarios">👥 Usuarios</button>
@@ -43,6 +46,13 @@
                 <!-- Lista de Eventos / Vista Principal -->
                 <div class="tab-pane fade show active" id="tab-eventos">
                     
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-primary mb-0">📅 Eventos Programados</h5>
+                        <button class="btn btn-outline-success btn-sm fw-bold" onclick="descargarReporte()">
+                            📊 Descargar Reporte (CSV)
+                        </button>
+                    </div>
+
                     <!-- 1. Próximos Eventos -->
                     <div class="mb-5">
                         <h5 class="fw-bold text-primary mb-3">📅 Próximos Eventos</h5>
@@ -162,6 +172,55 @@
                 <!-- Espacios -->
                 <div class="tab-pane fade" id="tab-espacios">
                     <div id="lista-espacios" class="row g-3"></div>
+                </div>
+
+                <!-- Gestión de Espacios (Solo Admin) -->
+                <div class="tab-pane fade" id="tab-gestion-espacios">
+                    <div class="row">
+                        <div class="col-12 col-md-4 mb-4">
+                            <div class="card shadow-sm">
+                                <div class="card-header bg-primary text-white fw-bold">Nuevo Espacio</div>
+                                <div class="card-body">
+                                    <form id="form-nuevo-espacio">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Nombre del Espacio</label>
+                                            <input type="text" class="form-control" id="esp-nombre" placeholder="Ej: Laboratorio 5" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Tipo</label>
+                                            <select class="form-select" id="esp-tipo" required>
+                                                <option value="Aula">Aula</option>
+                                                <option value="Laboratorio">Laboratorio</option>
+                                                <option value="Auditorio">Auditorio</option>
+                                                <option value="Área Abierta">Área Abierta</option>
+                                                <option value="Edificio">Edificio</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Capacidad</label>
+                                            <input type="number" class="form-control" id="esp-capacidad" placeholder="Ej: 30" required>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-100">Registrar Espacio</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle table-mobile-card">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Tipo</th>
+                                            <th>Capacidad</th>
+                                            <th class="text-end">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabla-gestion-espacios"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tabla de Gestión de Usuarios (Admin) -->
